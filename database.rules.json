@@ -8,6 +8,15 @@
         ".write": "$code.matches(/^[A-Z]{4}$/)",
         ".validate": "newData.hasChildren(['createdAt', 'hostId', 'status'])"
       }
+    },
+    "history": {
+      "products": {
+        ".read": true,
+        ".write": true,
+        "$id": {
+          ".validate": "$id.matches(/^[a-z0-9-]{1,60}$/) && newData.isNumber()"
+        }
+      }
     }
   }
 }

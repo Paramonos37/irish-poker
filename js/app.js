@@ -283,13 +283,44 @@
     renderBanner();
   }
 
+  /* ---------- Guess the Price history: no product repeats until every product has been used ---------- */
+  function setupPriceHistory() {
+    if (C.histDb === C.db) return;
+    C.histDb = C.db;
+    if (C.histUnsub) { try { C.histUnsub(); } catch (e) { /* gone */ } C.histUnsub = null; }
+    const local = C.local;
+    let used = local ? LS.get('ip.hist', {}) : null;
+    if (!local) C.histUnsub = C.db.onValue('history/products', v => { used = v || {}; });
+    const mix = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; };
+    IP.priceHistory = {
+      pick(n) {
+        if (!used) return null; // not loaded yet: the engine picks at random
+        const ids = (IP.PRODUCTS || []).map(p => p.id).filter(Boolean);
+        const free = mix(ids.filter(id => !used[id]));
+        let chosen = free.slice(0, n), reset = false;
+        if (chosen.length < n) {
+          // Everything has been played: use what's left, then start a fresh cycle.
+          reset = true;
+          chosen = chosen.concat(mix(ids.filter(id => chosen.indexOf(id) === -1)).slice(0, n - chosen.length));
+        }
+        const t = Date.now(), mark = {};
+        chosen.forEach(id => { mark[id] = t; });
+        used = reset ? Object.assign({}, mark) : Object.assign({}, used, mark);
+        if (local) LS.set('ip.hist', used);
+        else if (reset) C.db.set('history/products', mark).catch(e => console.warn('price history', e));
+        else C.db.update('history/products', mark).catch(e => console.warn('price history', e));
+        return chosen;
+      }
+    };
+  }
+
   /* ---------- router ---------- */
   function render() {
     if (!C.code) return;
     const S = C.S;
     if (!S) { renderGone('This game was closed by the host.'); return; }
     if (!S.players || !S.players[C.pid]) { renderGone('You’re no longer at this table.'); return; }
-    if (S.hostId === C.pid && !C.engine) { C.engine = IP.Engine(C.db, C.code, C.pid); C.engine.start(); }
+    if (S.hostId === C.pid && !C.engine) { setupPriceHistory(); C.engine = IP.Engine(C.db, C.code, C.pid); C.engine.start(); }
     if (S.hostId !== C.pid && C.engine) { C.engine.stop(); C.engine = null; }
     checkHost(S);
     const g = S.game;
@@ -525,18 +556,28 @@
     clearTimeout(C.landTimer); C.landTimer = 0;
   }
   function wheelHTML(wheel) {
-    const R = 125;
+    const R = 125, n = wheel.slices.length, ang = 360 / n;
     const fills = ['var(--accent)', 'var(--plum)', 'var(--bone)', 'var(--felt)'];
     const inks = ['var(--accent-ink)', 'var(--bone)', 'var(--suit-black)', 'var(--bone)'];
+    const fs = n > 8 ? 13 : 10;
     let paths = '', labels = '';
     wheel.slices.forEach((s, i) => {
-      const a0 = (-112.5 + 45 * i) * Math.PI / 180, a1 = (-67.5 + 45 * i) * Math.PI / 180;
+      const a0 = (-90 - ang / 2 + ang * i) * Math.PI / 180, a1 = (-90 + ang / 2 + ang * i) * Math.PI / 180;
       const x0 = (R * Math.cos(a0)).toFixed(2), y0 = (R * Math.sin(a0)).toFixed(2), x1 = (R * Math.cos(a1)).toFixed(2), y1 = (R * Math.sin(a1)).toFixed(2);
-      paths += `<path class="slice" data-i="${i}" d="M0 0L${x0} ${y0}A${R} ${R} 0 0 1 ${x1} ${y1}Z" style="fill:${fills[i % 4]};stroke:var(--ground);stroke-width:2"/>`;
-      labels += `<text transform="rotate(${45 * i})" x="0" y="-84" text-anchor="middle" dominant-baseline="middle" style="fill:${inks[i % 4]}">${esc(IP.sliceLabel(s))}</text>`;
+      // Alternate colours; with an odd count the last slice would touch the first, so give it the 3rd colour.
+      const c = (i === n - 1 && n % 4 === 1) ? 2 : i % 4;
+      paths += `<path class="slice" data-i="${i}" d="M0 0L${x0} ${y0}A${R} ${R} 0 0 1 ${x1} ${y1}Z" style="fill:${fills[c]};stroke:var(--ground);stroke-width:2"/>`;
+      // 8 or fewer slices: labels run across the slice. More: they run along the radius so they fit.
+      labels += n > 8
+        ? `<text transform="rotate(${ang * i - 90}) translate(76 0)${(ang * i) % 360 > 180 ? ' rotate(180)' : ''}" x="0" y="0" text-anchor="middle" dominant-baseline="middle" style="fill:${inks[c]};font-size:${fs}px">${esc(IP.sliceLabel(s))}</text>`
+        : `<text transform="rotate(${ang * i})" x="0" y="-84" text-anchor="middle" dominant-baseline="middle" style="fill:${inks[c]};font-size:${fs}px">${esc(IP.sliceLabel(s))}</text>`;
     });
     const list = wheel.slices.map(s => IP.sliceLabel(s).toLowerCase()).join(', ');
     return `<div class="wheel-box"><div class="wheel-disc"><svg viewBox="-130 -130 260 260" role="img" aria-label="Wheel: ${esc(list)}">${paths}<g class="wheel-labels">${labels}</g></svg></div><div class="wheel-hub" aria-hidden="true"></div><svg class="wheel-pointer" viewBox="0 0 26 30" aria-hidden="true"><path d="M2 2H24L13 28Z" style="fill:var(--bone);stroke:var(--ground);stroke-width:3;stroke-linejoin:round"/></svg></div>`;
+  }
+  function wheelTarget(g) {
+    const ang = 360 / IP.wheelFor(g.round).slices.length;
+    return 360 * 5 + (((-ang * g.slice) % 360) + 360) % 360 + (g.jitter || 0);
   }
   function sliceText(sl, correct, pid) {
     if (sl.type === 'drinks') return addr(pid, correct ? `Give out ${drinks(sl.n)}` : `Take ${drinks(sl.n)}`);
@@ -596,7 +637,7 @@
     announce(`${name} called ${guessLabel(r, g.guess)}. ${correct ? 'Correct' : 'Wrong'}.`);
     if (me) vibrate(correct ? 30 : [30, 50, 30]);
     const disc = $('#ovBody .wheel-disc');
-    const target = 360 * 5 + (((-45 * g.slice) % 360) + 360) % 360 + (g.jitter || 0);
+    const target = wheelTarget(g);
     const remaining = g.stepAt + IP.SPIN_MS * (IP.TIME_SCALE || 1) - 150 - now();
     if (g.step !== 'spin' || remaining < 400 || reduceMotion) {
       disc.style.transition = 'none';
@@ -630,7 +671,7 @@
     const g = G(), pid = activeId(), me = isMe(pid), key = g.key + ':' + g.turnId;
     if (g.outcome !== 'social' && g.outcome !== 'skipped' && g.step !== 'spin' && !C.ovLanded) {
       const disc = $('#ovBody .wheel-disc');
-      if (disc) { clearTimeout(C.landTimer); disc.style.transition = 'none'; disc.style.transform = `rotate(${360 * 5 + (((-45 * g.slice) % 360) + 360) % 360 + (g.jitter || 0)}deg)`; }
+      if (disc) { clearTimeout(C.landTimer); disc.style.transition = 'none'; disc.style.transform = `rotate(${wheelTarget(g)}deg)`; }
       landWheel();
     }
     const act = $('#ovAct');
@@ -869,10 +910,15 @@
     else if (A.stage === 'pen' || A.stage === 'done') { const pb = $('#penBox'); if (pb) renderPen(pb); if (A.stage === 'done') updateDone(u); }
     else { const sd = IP.ACT_UI[A.kind].stages[A.stage]; if (sd) sd.update(u, $('#aBody')); }
     // countdown for stages with a deadline
+    // Shell game and Memory only start their countdown once it's time to pick.
+    const showT = a => {
+      const f = a.stage === 'watch' ? a.pickAt : (a.stage === 'level' ? a.inputAt : 0);
+      if (f && now() < f) { u.setTimer(null); return; }
+      u.setTimer(Math.max(0, Math.ceil((a.until - now()) / 1000 / (IP.TIME_SCALE || 1))));
+    };
     if (A.until && !IP.GATE_STAGES[A.stage] && A.stage !== 'pen' && A.stage !== 'done' && !(A.kind === 'chairs')) {
-      const left = Math.ceil((A.until - now()) / 1000 / (IP.TIME_SCALE || 1));
-      u.setTimer(Math.max(0, left));
-      if (!C.st.tick) { C.st.tick = true; u.every(250, () => { const a = G() && G().act; if (a && a.sid === A.sid) u.setTimer(Math.max(0, Math.ceil((a.until - now()) / 1000 / (IP.TIME_SCALE || 1)))); }); }
+      showT(A);
+      if (!C.st.tick) { C.st.tick = true; u.every(250, () => { const a = G() && G().act; if (a && a.sid === A.sid) showT(a); }); }
     }
     // host controls
     const hk = isHost() ? A.sid + ':' + A.stage : '';

@@ -145,7 +145,7 @@
       });
       W.set('game', {
         key: Math.random().toString(36).slice(2, 10),
-        order: ord, hands, stats, miniOrder: shuffle(IP.MINI_KINDS.slice()),
+        order: ord, hands, stats, miniOrder: shuffle(IP.MINI_KINDS.slice()).slice(0, IP.MINIS_PER_GAME || 4),
         round: 1, turn: 0, step: 'guess', stepAt: now, phase: 'turns', turnId: 1, sidc: 0, penc: 0
       });
       W.set('status', 'playing');
@@ -227,8 +227,8 @@
         return;
       }
       if (outcome === 'correct') bump(S, W, pid, 'points', 1);
-      W.set('game/slice', rnd(8));
-      W.set('game/jitter', Math.round(Math.random() * 24 - 12));
+      W.set('game/slice', rnd(IP.wheelFor(G.round).slices.length));
+      W.set('game/jitter', Math.round(Math.random() * 20 - 10));
       W.set('game/step', 'spin');
     }
     const curSlice = S => IP.wheelFor(S.game.round).slices[S.game.slice];
@@ -646,7 +646,7 @@
           return;
         }
         const allBids = Object.assign({}, A.bids || {}, re ? bids : {}, re ? {} : bids);
-        const winner = top > 0 ? pick(tied) : null;
+        const winner = tied.length ? pick(tied) : null;
         const items = {};
         if (A.d.twist === 'allpay') Object.keys(allBids).forEach(id => add(items, id, allBids[id], 'Your bid', 1));
         else if (winner) add(items, winner, top, 'Winning bid', 1);
@@ -757,13 +757,212 @@
       }
     };
 
+    /* Twins: everyone picks 1-25; matching numbers drink, no matches means a social */
+    K.twins = {
+      init(S, W, now, A, all) { A.pl = all.filter(id => id !== A.imm); A.all = all; if (A.pl.length < 2) return false; },
+      next(S, W, now) { setStage(S, W, now, 'pick', 12000); },
+      tick(S, W, now) {
+        const A = S.game.act, pl = arr(A.pl);
+        const ok = v => Number.isInteger(v) && v >= 1 && v <= 25;
+        botInputs(S, W, now, pl, () => 1 + rnd(25), 1500, 8000);
+        if (!(allIn(S, pl, ok) || pastDeadline(S, now))) return;
+        const inp = inputs(S), picks = {};
+        pl.forEach(id => { if (ok(inp[id])) picks[id] = inp[id]; else if (online(S, id)) picks[id] = 1 + rnd(25); });
+        const ids = Object.keys(picks);
+        const matched = ids.filter(id => ids.some(o => o !== id && picks[o] === picks[id]));
+        const items = {};
+        let social = false;
+        if (matched.length) {
+          matched.forEach(id => add(items, id, IP.ACT_DRINKS[A.round], 'Matched a number'));
+          feed(S, W, now, `Twins: ${matched.map(nm).join(', ')} matched`, matched);
+        } else {
+          social = true;
+          arr(A.all).forEach(id => add(items, id, 1, 'Social: nobody matched'));
+          feed(S, W, now, 'Twins: nobody matched, so everyone drinks 1', arr(A.all));
+        }
+        finishAct(S, W, now, { picks, matched, social }, items);
+      }
+    };
+
+    /* Shell game: a skull under one cup, a fast shuffle, then everyone picks a cup */
+    K.shell = {
+      init(S, W, now, A, all) {
+        A.pl = all.filter(id => id !== A.imm);
+        if (!A.pl.length) return false;
+        A.d.cups = IP.SHELL.cups(A.round);
+        A.d.swaps = IP.SHELL.swaps(A.round);
+        A.d.seed = rnd(1e9);
+        A.d.skull = rnd(A.d.cups);
+      },
+      next(S, W, now) {
+        const A = S.game.act, plan = IP.shellPlan(A.d.seed, A.d.cups, A.d.swaps);
+        setStage(S, W, now, 'watch', 0);
+        const go = now + ts(2500);
+        W.set('game/act/go', go);
+        W.set('game/act/pickAt', go + ts(IP.SHELL.reveal + plan.total + 400));
+        W.set('game/act/until', go + ts(IP.SHELL.reveal + plan.total + 400 + 10000));
+      },
+      tick(S, W, now) {
+        const A = S.game.act, pl = arr(A.pl);
+        if (A.stage === 'watch') {
+          if (now < A.pickAt) return;
+          const ok = v => Number.isInteger(v) && v >= 0 && v < A.d.cups;
+          if (!S.game.ain || !S.game.ain[A.sid]) W.set(`game/ain/${A.sid}/_`, 1);
+          const inp = inputs(S);
+          pl.forEach(id => {
+            if (!isBot(S, id) || inp[id] !== undefined) return;
+            if (now < A.pickAt + ts(1000 + hash(A.sid + id) % 4000)) return;
+            const right = Math.random() < 0.15 + skill(S, id) * 0.2;
+            W.set(`game/ain/${A.sid}/${id}`, right ? A.d.skull : pickOther(Array.from({ length: A.d.cups }, (_, i) => i), A.d.skull));
+          });
+          if (!(allIn(S, pl, ok) || now >= A.until + ts(1000))) return;
+          const picks = {};
+          pl.forEach(id => { const v = inputs(S)[id]; if (ok(v)) picks[id] = v; else if (online(S, id)) picks[id] = -1; });
+          W.set('game/act/picks', picks);
+          setStage(S, W, now, 'reveal', 0);
+        } else if (A.stage === 'reveal' && now - A.at >= ts(3500)) {
+          const picks = A.picks || {};
+          const wrong = Object.keys(picks).filter(id => picks[id] !== A.d.skull);
+          const items = {};
+          wrong.forEach(id => add(items, id, IP.ACT_DRINKS[A.round], picks[id] === -1 ? 'No pick' : 'Wrong cup'));
+          feed(S, W, now, wrong.length ? `Shell game: ${wrong.length} of ${Object.keys(picks).length} picked wrong` : 'Shell game: everyone found the skull', wrong);
+          finishAct(S, W, now, { picks, skull: A.d.skull, wrong }, items);
+        }
+      }
+    };
+
+    /* Memory: a growing, speeding-up sequence; one miss and you're out; last one standing wins */
+    K.memory = {
+      init(S, W, now, A, all) {
+        if (all.length < 2) return false;
+        A.pl = all;
+        A.alive = all;
+        A.d.seed = rnd(1e9);
+        A.reach = {};
+      },
+      next(S, W, now) { this.level(S, W, now, 1); },
+      level(S, W, now, lvl) {
+        const p = IP.memoryPlan(lvl);
+        setStage(S, W, now, 'level', 0);
+        const go = now + ts(2200);
+        W.set('game/act/lvl', lvl);
+        W.set('game/act/go', go);
+        W.set('game/act/inputAt', go + ts(p.show));
+        W.set('game/act/until', go + ts(p.show + p.input));
+      },
+      tick(S, W, now) {
+        const A = S.game.act, alive = arr(A.alive), lvl = A.lvl || 1, p = IP.memoryPlan(lvl);
+        if (A.stage === 'level') {
+          if (now < A.inputAt) return;
+          if (!S.game.ain || !S.game.ain[A.sid]) W.set(`game/ain/${A.sid}/_`, 1);
+          const inp = inputs(S);
+          alive.forEach(id => {
+            if (!isBot(S, id) || inp[id] !== undefined) return;
+            const t = 1200 + p.len * (350 + hash(A.sid + id) % 300);
+            if (now < A.inputAt + ts(t)) return;
+            const pOk = clamp(1.02 - (p.len - 3) * 0.085 + skill(S, id) * 0.12, 0.05, 0.98);
+            const ok = Math.random() < pOk;
+            W.set(`game/ain/${A.sid}/${id}`, ok ? { ok: 1, n: p.len, t } : { ok: 0, n: rnd(p.len), t });
+          });
+          const done = v => v && typeof v.ok === 'number';
+          if (!(allIn(S, alive, done) || now >= A.until)) return;
+          const res = {};
+          alive.forEach(id => { const v = inputs(S)[id]; res[id] = done(v) ? { ok: v.ok ? 1 : 0, n: Number(v.n) || 0, t: Number(v.t) || 99999 } : { ok: 0, n: 0, t: 99999 }; });
+          const survivors = alive.filter(id => res[id].ok);
+          const reach = Object.assign({}, A.reach || {});
+          alive.filter(id => !res[id].ok).forEach(id => { reach[id] = { lvl, n: res[id].n }; });
+          W.set('game/act/last', { lvl, res });
+          W.set('game/act/reach', reach);
+          if (survivors.length >= 2 && lvl < 25) {
+            W.set('game/act/alive', survivors);
+            setStage(S, W, now, 'lvlres', 0);
+            return;
+          }
+          let winner;
+          if (survivors.length === 1) winner = survivors[0];
+          else {
+            const pool = survivors.length ? survivors : alive;
+            pool.sort((a, b) => res[b].n - res[a].n || res[a].t - res[b].t || (Math.random() - 0.5));
+            winner = pool[0];
+          }
+          reach[winner] = { lvl, n: res[winner].n, win: 1 };
+          W.set('game/act/reach', reach);
+          W.set('game/act/alive', [winner]);
+          feed(S, W, now, `${nm(winner)} outlasted everyone in Memory`, [winner]);
+          finishAct(S, W, now, { winner, lvl, reach }, {}, [winner]);
+        } else if (A.stage === 'lvlres' && now - A.at >= ts(2800)) {
+          this.level(S, W, now, lvl + 1);
+        }
+      }
+    };
+
+    /* Bar dice: 5 dice, up to 3 shakes, aces wild; highest wins, lowest drinks 2 */
+    function botDice(S, id) {
+      let dice = [0, 0, 0, 0, 0].map(() => 1 + rnd(6));
+      for (let shake = 1; shake < 3; shake++) {
+        const counts = [0, 0, 0, 0, 0, 0, 0];
+        dice.forEach(v => { counts[v]++; });
+        let target = 6;
+        for (let f = 6; f >= 2; f--) if (counts[f] > counts[target]) target = f;
+        if (IP.diceScore(dice) >= 40 + target && Math.random() < 0.7) break;
+        dice = dice.map(v => (v === 1 || v === target) ? v : 1 + rnd(6));
+      }
+      return dice;
+    }
+    K.dice = {
+      init(S, W, now, A, all) { if (all.length < 2) return false; A.pl = all; },
+      next(S, W, now) { setStage(S, W, now, 'roll', 45000); },
+      tick(S, W, now) {
+        const A = S.game.act, re = A.stage === 'rolloff';
+        const pl = re ? arr(A.tied) : arr(A.pl);
+        botInputs(S, W, now, pl, id => {
+          const dice = re ? [0, 0, 0, 0, 0].map(() => 1 + rnd(6)) : botDice(S, id);
+          return { dice, shakes: re ? 1 : 3, lock: 1 };
+        }, 3000, re ? 6000 : 15000);
+        if (!(allIn(S, pl, v => v && v.lock) || pastDeadline(S, now))) return;
+        const inp = inputs(S), scores = {}, hands = {};
+        pl.forEach(id => {
+          const v = inp[id];
+          const dice = v && arr(v.dice).map(Number);
+          if (dice && dice.length === 5) { hands[id] = dice; scores[id] = IP.diceScore(dice); }
+          else if (online(S, id)) { hands[id] = []; scores[id] = 0; }
+        });
+        const ids = Object.keys(scores);
+        const top = ids.length ? Math.max(...ids.map(id => scores[id])) : 0;
+        // In a roll-off where nobody gets an ace, everyone in it is still tied.
+        const tied = top > 0 ? ids.filter(id => scores[id] === top) : (re ? ids : []);
+        if (!re) { W.set('game/act/scores', scores); W.set('game/act/hands', hands); }
+        else { W.set('game/act/rscores', scores); W.set('game/act/rhands', hands); }
+        if (tied.length > 1 && (!re || (A.rolls || 0) < 2)) {
+          W.set('game/act/tied', tied);
+          W.set('game/act/rolls', (A.rolls || 0) + 1);
+          setStage(S, W, now, 'rolloff', 15000);
+          return;
+        }
+        const winner = tied.length ? pick(tied) : null;
+        const main = re ? (A.scores || {}) : scores;
+        const mids = Object.keys(main);
+        const low = mids.length ? Math.min(...mids.map(id => main[id])) : 0;
+        const high = mids.length ? Math.max(...mids.map(id => main[id])) : 0;
+        const losers = low < high ? mids.filter(id => main[id] === low) : [];
+        const items = {};
+        losers.forEach(id => add(items, id, 2, 'Lowest roll'));
+        if (winner) feed(S, W, now, `${nm(winner)} won Bar dice with ${IP.diceLabel(re ? (A.scores || {})[winner] : top).toLowerCase()}`, [winner]);
+        finishAct(S, W, now, { winner, losers, rolloff: re ? 1 : 0 }, items, winner ? [winner] : []);
+      }
+    };
+
     /* Guess the Price: three products, closest guess on each scores */
     K.price = {
       init(S, W, now, A, all) {
         const P = IP.PRODUCTS || [];
         if (all.length < 2 || P.length < 3) return false;
         A.pl = all;
-        A.d.items = shuffle(P.map((p, i) => i)).slice(0, 3);
+        const ids = IP.priceHistory ? IP.priceHistory.pick(3) : null;
+        let items = (ids || []).map(id => P.findIndex(p => p.id === id)).filter(i => i >= 0);
+        if (items.length < 3) items = shuffle(P.map((p, i) => i)).slice(0, 3);
+        A.d.items = items;
+        A.d.ids = items.map(i => P[i].id || String(i));
       },
       next(S, W, now) { setStage(S, W, now, 'guess', 20000); W.set('game/act/i', 0); },
       tick(S, W, now) {

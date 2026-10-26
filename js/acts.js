@@ -495,10 +495,24 @@
         part: 'Prices were checked online this October, so think real store prices.'
       };
     },
-    prod(u) { return IP.PRODUCTS[u.arr(u.A.d.items)[u.A.i || 0]]; },
-    prodCard(u) {
+    prod(u) {
+      const i = u.A.i || 0, id = u.arr(u.A.d.ids)[i];
+      return IP.PRODUCTS.find(p => p.id === id) || IP.PRODUCTS[u.arr(u.A.d.items)[i]] || IP.PRODUCTS[0];
+    },
+    prodCard(u, compact) {
       const p = UI.price.prod(u), i = (u.A.i || 0) + 1;
-      return `<div class="prod"><div class="prod-pic">${prodIcon(p.cat)}</div><div class="prod-txt"><p class="eyebrow">Product ${i} of 3 · ${u.esc(p.store)}</p><p class="prod-name">${u.esc(p.name)}</p><p class="muted">${u.esc(p.detail)}</p></div></div>`;
+      const photo = p.img
+        ? `<div class="prod-photo-wrap"><img class="prod-photo" src="${u.esc(p.img)}" alt="${u.esc(p.name)}" referrerpolicy="no-referrer"><div class="prod-fallback">${prodIcon(p.cat)}</div></div>`
+        : `<div class="prod-photo-wrap noimg"><div class="prod-fallback">${prodIcon(p.cat)}</div></div>`;
+      const credit = p.img && p.credit ? `<p class="photo-credit">Photo: ${u.esc(p.credit)}${p.license ? ', ' + u.esc(p.license) : ''}</p>` : '';
+      return `<div class="prod ${compact ? 'compact' : ''}">${photo}<div class="prod-txt"><p class="eyebrow">Product ${i} of 3 · ${u.esc(p.store)}</p><p class="prod-name">${u.esc(p.name)}</p><p class="muted">${u.esc(p.detail)}</p>${credit}</div></div>`;
+    },
+    wirePhoto(el) {
+      el.querySelectorAll('img.prod-photo').forEach(img => {
+        const fail = () => { const w = img.closest('.prod-photo-wrap'); if (w) w.classList.add('noimg'); };
+        img.addEventListener('error', fail);
+        if (img.complete && img.naturalWidth === 0 && img.src) fail();
+      });
     },
     stages: {
       guess: {
@@ -512,6 +526,7 @@
             <div class="fine"><button type="button" class="btn fbtn" data-d="-100">−$1</button><button type="button" class="btn fbtn" data-d="-1">−1¢</button><button type="button" class="btn fbtn" data-d="1">+1¢</button><button type="button" class="btn fbtn" data-d="100">+$1</button></div>
             <button type="button" class="btn btn-primary btn-block" id="pLock">Lock it in</button>
             <p class="muted small center" id="pStatus"></p>`;
+          UI.price.wirePhoto(el);
           let deb = 0;
           const push = () => { clearTimeout(deb); deb = setTimeout(() => { if (!u.st.locked) u.input({ v: u.st.v, lock: 0 }); }, 350); };
           const paint = fromRange => {
@@ -541,13 +556,14 @@
           const maxV = Math.max(price * 1.6, ...ids.map(id => g[id]), 100);
           const pos = v => clamp(v / maxV * 100, 1, 99);
           const close = u.arr(rev.close), far = u.arr(rev.far);
-          el.innerHTML = `${UI.price.prodCard(u)}
+          el.innerHTML = `${UI.price.prodCard(u, true)}
             <p class="eyebrow center">Real price</p><p class="price-big real">${money(price)}</p>
             <div class="pline" aria-hidden="true"><span class="pmark real" style="left:${pos(price)}%"></span>${ids.map(id => `<span class="pmark ${close.indexOf(id) !== -1 ? 'close' : ''}" style="left:${pos(g[id])}%" title="${u.esc(u.nameOf(id))}"></span>`).join('')}</div>
             <ol class="res-list">${ids.map((id, i) => `<li class="res-row ${u.isMe(id) ? 'me' : ''} ${close.indexOf(id) !== -1 ? 'win' : ''} ${far.indexOf(id) !== -1 ? 'lose' : ''}"><span class="res-rank">${i + 1}</span><span class="res-name">${u.esc(u.disp(id))}</span><span class="res-score">${money(g[id])}<small>${g[id] === price ? 'exact!' : (g[id] > price ? '+' : '−') + money(Math.abs(g[id] - price))}</small></span></li>`).join('')}</ol>
             <p class="outcome">${close.length ? `${u.list(close)} ${close.length > 1 ? 'were' : 'was'} closest.` : ''}${far.length ? ` ${u.list(far)} ${far.length > 1 ? 'were' : 'was'} furthest and drink${far.length > 1 ? '' : 's'} 1.` : ''}</p>`;
           const p = UI.price.prod(u);
           if (p) el.insertAdjacentHTML('beforeend', `<p class="muted small center">Price: ${u.esc(p.store)}, checked October 2026.</p>`);
+          UI.price.wirePhoto(el);
         },
         update() {}
       }
@@ -632,6 +648,292 @@
         <ul class="cah-all">${subs.map((s, i) => i === R.choice ? '' : `<li><span>${fillBlack(u, black, u.arr(s.c).map(x => IP.CAH.white[x]))}</span><small>${u.esc(owner(s))}</small></li>`).join('')}</ul>
         <p class="outcome">${R.rando ? 'Rando won, so nobody gets the prize.' : ''}</p>
         <p class="credit">${u.esc(IP.CAH.credit)}</p>`;
+    }
+  };
+
+  /* ---------------- Twins ---------------- */
+  UI.twins = {
+    intro(u) {
+      return {
+        what: `Everyone secretly picks a number from 1 to 25. Anyone whose number matches somebody else’s drinks ${u.n}. If nobody matches, it’s a social and everyone drinks 1.`,
+        part: spinnerPart(u, 'You guessed right, so you don’t pick a number. You still drink if it’s a social.', 'You guessed wrong: you drink 1, then pick a number like everyone else.', 'Try to pick a number nobody else will.')
+      };
+    },
+    stages: {
+      pick: {
+        build(u, el) {
+          const inIt = u.arr(u.A.pl).indexOf(u.me) !== -1;
+          const nums = Array.from({ length: 25 }, (_, i) => i + 1);
+          el.innerHTML = `<p class="lede center">${inIt ? 'Pick a number nobody else will.' : 'You’re sitting this one out.'}</p>
+            <div class="num-grid" id="tGrid">${nums.map(n => `<button type="button" class="num" data-v="${n}" ${inIt ? '' : 'disabled'}>${n}</button>`).join('')}</div>
+            <p class="muted small center" id="tStatus"></p>`;
+          if (inIt) u.on(el, '#tGrid', v => { u.input(Number(v)); u.lockChoices(el, '#tGrid', v, '.num'); }, '.num');
+        },
+        update(u, el) {
+          const mine = u.inputs()[u.me];
+          if (mine) u.lockChoices(el, '#tGrid', String(mine), '.num');
+          el.querySelector('#tStatus').textContent = statusLine(u, u.arr(u.A.pl), v => v >= 1 && v <= 25, 'picked');
+        }
+      }
+    },
+    results(u) {
+      const R = u.A.res || {}, picks = R.picks || {}, matched = u.arr(R.matched);
+      const byNum = {};
+      Object.keys(picks).forEach(id => { (byNum[picks[id]] = byNum[picks[id]] || []).push(id); });
+      const nums = Object.keys(byNum).map(Number).sort((a, b) => a - b);
+      return `<div class="twin-list">${nums.map(n => `<div class="twin ${byNum[n].length > 1 ? 'hot' : ''}"><span class="twin-n">${n}</span><span>${byNum[n].map(id => u.esc(u.disp(id))).join(', ')}</span></div>`).join('')}</div>
+        <p class="outcome">${R.social ? 'Nobody matched, so it’s a social. Everyone drinks 1.' : `${u.list(matched)} matched.`}</p>`;
+    }
+  };
+
+  /* ---------------- Shell game ---------------- */
+  const CUP_SVG = '<svg viewBox="0 0 60 64" aria-hidden="true"><path d="M8 62h44L44 8a6 6 0 0 0-6-5H22a6 6 0 0 0-6 5z" class="cup-fill"/><path d="M14 22h32" class="cup-band"/><ellipse cx="30" cy="61" rx="23" ry="3" class="cup-rim"/></svg>';
+  const SKULL_SVG = '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3c-9 0-15 6-15 14 0 5 2 8 5 10v6h20v-6c3-2 5-5 5-10 0-8-6-14-15-14z" class="sk-head"/><circle cx="14" cy="18" r="4" class="sk-eye"/><circle cx="26" cy="18" r="4" class="sk-eye"/><path d="M18 26l2-4 2 4z" class="sk-eye"/><path d="M15 33v4M20 33v4M25 33v4" class="sk-teeth"/></svg>';
+  UI.shell = {
+    intro(u) {
+      const A = u.A;
+      return {
+        what: `A skull goes under one of ${A.d.cups} cups. You’ll see it for a second, then the cups shuffle ${A.d.swaps} times, faster and faster, sometimes two pairs at once. Then tap the cup you think hides the skull. Wrong guesses drink ${u.n}.`,
+        part: spinnerPart(u, 'You guessed right, so you sit this one out and watch.', 'You guessed wrong: you drink 1, then play like everyone else.', 'Keep your eyes on the skull.')
+      };
+    },
+    slotX(cups, s) { const w = 100 / cups; return s * w + w * 0.08; },
+    stages: {
+      watch: {
+        build(u, el) {
+          const A = u.A, n = A.d.cups, sc = IP.TIME_SCALE || 1;
+          const plan = IP.shellPlan(A.d.seed, n, A.d.swaps);
+          const inIt = u.arr(A.pl).indexOf(u.me) !== -1;
+          const width = (100 / n) * 0.84;
+          el.innerHTML = `<p class="lede center" id="shLine">Watch the skull…</p>
+            <div class="shell-area" id="shArea" style="--cupw:${width}%">${Array.from({ length: n }, (_, id) => `<button type="button" class="cup" data-v="${id}" style="left:${UI.shell.slotX(n, id)}%" aria-label="Cup" disabled>${id === A.d.skull ? `<span class="skull">${SKULL_SVG}</span>` : ''}<span class="cup-body">${CUP_SVG}</span></button>`).join('')}</div>
+            <p class="muted small center" id="shStatus"></p>`;
+          const cups = Array.from(el.querySelectorAll('.cup'));
+          const slotOf = cups.map((c, i) => i);
+          const cupAt = s => slotOf.indexOf(s);
+          const place = (id, ms) => { cups[id].style.setProperty('--ms', ms + 'ms'); cups[id].style.left = UI.shell.slotX(n, slotOf[id]) + '%'; };
+          const swap = (step, animate) => {
+            step.pairs.forEach(([sa, sb], k) => {
+              const a = cupAt(sa), b = cupAt(sb);
+              slotOf[a] = sb; slotOf[b] = sa;
+              const ms = animate ? Math.round(step.ms * 0.92 * sc) : 0;
+              place(a, ms); place(b, ms);
+              if (animate) {
+                cups[a].classList.add(k ? 'hop-b' : 'hop-a'); cups[b].classList.add(k ? 'hop-a' : 'hop-b');
+                u.later(ms, () => { cups[a].classList.remove('hop-a', 'hop-b'); cups[b].classList.remove('hop-a', 'hop-b'); });
+              }
+            });
+          };
+          const start = A.go - u.now();
+          const reveal = IP.SHELL.reveal * sc;
+          const skull = cups[A.d.skull];
+          const lift = (on) => skull.classList.toggle('lift', on);
+          // Catch up instantly if this phone joined late, then animate the rest in sync.
+          let t = start + reveal;
+          if (start > 0) u.later(start, () => { lift(true); el.querySelector('#shLine').textContent = 'There it is…'; });
+          else if (start + reveal > 0) lift(true);
+          u.later(Math.max(0, start + reveal), () => { lift(false); const l = el.querySelector('#shLine'); if (l) l.textContent = 'Shuffling…'; });
+          plan.steps.forEach(step => {
+            const at = t;
+            t += step.ms * sc;
+            if (at <= 0) swap(step, false);
+            else u.later(at, () => swap(step, true));
+          });
+          const pickIn = A.pickAt - u.now();
+          u.later(Math.max(0, pickIn), () => {
+            const l = el.querySelector('#shLine');
+            if (l) l.innerHTML = inIt ? '<b>Which cup has the skull?</b>' : 'Everyone’s picking a cup…';
+            if (inIt && !u.inputs()[u.me] && u.inputs()[u.me] !== 0) cups.forEach(c => { c.disabled = false; });
+          });
+          if (inIt) u.on(el, '#shArea', v => { u.input(Number(v)); u.lockChoices(el, '#shArea', v, '.cup'); }, '.cup');
+        },
+        update(u, el) {
+          const A = u.A, mine = u.inputs()[u.me];
+          if (mine !== undefined && mine !== null) u.lockChoices(el, '#shArea', String(mine), '.cup');
+          if (u.now() >= A.pickAt) el.querySelector('#shStatus').textContent = statusLine(u, u.arr(A.pl), v => Number.isInteger(v), 'picked');
+        }
+      },
+      reveal: {
+        build(u, el) {
+          const A = u.A, n = A.d.cups, plan = IP.shellPlan(A.d.seed, n, A.d.swaps), picks = A.picks || {};
+          const slotOf = Array.from({ length: n }, (_, i) => i);
+          plan.steps.forEach(step => step.pairs.forEach(([sa, sb]) => { const a = slotOf.indexOf(sa), b = slotOf.indexOf(sb); slotOf[a] = sb; slotOf[b] = sa; }));
+          const width = (100 / n) * 0.84;
+          const who = id => Object.keys(picks).filter(p => picks[p] === id).map(p => u.esc(u.disp(p))).join('<br>');
+          el.innerHTML = `<p class="lede center"><b>Here’s the skull.</b></p>
+            <div class="shell-area rev" style="--cupw:${width}%">${Array.from({ length: n }, (_, id) => `<div class="cup ${id === A.d.skull ? 'lift win' : 'lift'}" style="left:${UI.shell.slotX(n, slotOf[id])}%">${id === A.d.skull ? `<span class="skull">${SKULL_SVG}</span>` : ''}<span class="cup-body">${CUP_SVG}</span><span class="cup-names">${who(id)}</span></div>`).join('')}</div>`;
+          const mine = picks[u.me];
+          if (mine !== undefined) u.vibrate(mine === A.d.skull ? 40 : 250);
+        },
+        update() {}
+      }
+    },
+    results(u) {
+      const R = u.A.res || {}, wrong = u.arr(R.wrong), picks = R.picks || {};
+      const right = Object.keys(picks).filter(id => wrong.indexOf(id) === -1);
+      return `<p class="outcome">${right.length ? `${u.list(right)} found the skull.` : 'Nobody found the skull.'} ${wrong.length ? `${u.list(wrong)} picked wrong.` : ''}</p>`;
+    }
+  };
+
+  /* ---------------- Memory ---------------- */
+  const MEM_ICONS = [
+    '<path d="M12 6c-1-2 0-3 2-3M5 13a7 6.5 0 1 0 14 0a7 6.5 0 1 0-14 0M9 12l1-1.5 1 1.5M13 12l1-1.5 1 1.5M9.5 15.5q2.5 2 5 0"/>',
+    '<path d="M5 20V11a7 7 0 0 1 14 0v9l-2.3-2-2.3 2-2.4-2-2.3 2-2.4-2zM9.5 11h.01M14.5 11h.01"/>',
+    '<path d="M2 9c2 0 3 1 4 3 1-2 2-3 3-3l3 3 3-3c1 0 2 1 3 3 1-2 2-3 4-3-1 3-3 6-6 7l-4 3-4-3c-3-1-5-4-6-7z"/>',
+    '<path d="M12 3c-5 0-8 3.5-8 8 0 3 1.5 5 3.5 6v3h9v-3c2-1 3.5-3 3.5-6 0-4.5-3-8-8-8zM9 11h.01M15 11h.01M11 15l1-2 1 2"/>',
+    '<path d="M15 3a8 8 0 1 0 6 13A7 7 0 0 1 15 3z"/>',
+    '<path d="M12 8a3 3 0 1 0 0 6a3 3 0 1 0 0-6M12 14a4 4 0 1 0 0 8a4 4 0 1 0 0-8M9 10L3 7M9 12H2M9 15l-6 3M15 10l6-3M15 12h7M15 15l6 3M12 8V3"/>'
+  ];
+  const memTile = (i, dis) => `<button type="button" class="mem-tile m${i}" data-v="${i}" aria-label="${IP.MEMORY_SYMBOLS[i]}" ${dis ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${MEM_ICONS[i]}</svg></button>`;
+  UI.memory = {
+    intro(u) {
+      return {
+        what: `A sequence of Halloween symbols flashes on every phone at the same time. When it stops, tap it back in the same order. Every round adds one more symbol and flashes faster. One wrong tap and you’re out. The last one standing wins ${prizeName(u.A)}.`,
+        part: 'Round 1 starts with 3 symbols. Watch closely.'
+      };
+    },
+    stages: {
+      level: {
+        build(u, el) {
+          const A = u.A, lvl = A.lvl || 1, p = IP.memoryPlan(lvl), sc = IP.TIME_SCALE || 1;
+          const seq = IP.memorySeq(A.d.seed, 30).slice(0, p.len);
+          const alive = u.arr(A.alive).indexOf(u.me) !== -1;
+          el.innerHTML = `<div class="mem-head"><p class="eyebrow">Round ${lvl} · ${p.len} symbols</p><p class="mem-alive" id="mAlive"></p></div>
+            <p class="lede center" id="mLine">${alive ? 'Get ready…' : 'You’re out. Watch the rest.'}</p>
+            <div class="mem-grid" id="mGrid">${[0, 1, 2, 3, 4, 5].map(i => memTile(i, true)).join('')}</div>
+            <p class="muted small center" id="mStatus"></p>`;
+          const tiles = Array.from(el.querySelectorAll('.mem-tile'));
+          const line = t => { const l = el.querySelector('#mLine'); if (l) l.innerHTML = t; };
+          const flash = (i, ms) => { tiles[i].classList.add('lit'); u.later(ms, () => tiles[i].classList.remove('lit')); };
+          const start = A.go - u.now();
+          if (start > 0) u.later(start, () => line('Watch…'));
+          seq.forEach((s, k) => {
+            const at = start + (p.lead + k * (p.on + p.gap)) * sc;
+            if (at >= 0) u.later(at, () => flash(s, p.on * sc));
+          });
+          if (!alive) return;
+          let pos = 0, t0 = 0, done = false;
+          const finish = ok => {
+            done = true;
+            tiles.forEach(b => { b.disabled = true; });
+            u.input({ ok: ok ? 1 : 0, n: pos, t: Math.round(performance.now() - t0) });
+            line(ok ? '<b>Got it!</b> Waiting for everyone…' : `<b>Out!</b> You got ${pos} of ${seq.length}.`);
+            u.vibrate(ok ? 40 : 300);
+          };
+          u.later(Math.max(0, A.until - u.now() - 400), () => { if (!done && !u.inputs()[u.me] && pos > 0) finish(false); });
+          u.later(Math.max(0, A.inputAt - u.now()), () => {
+            if (u.inputs()[u.me]) return;
+            t0 = performance.now();
+            tiles.forEach(b => { b.disabled = false; });
+            line('<b>Your turn.</b> Tap it back.');
+          });
+          el.querySelector('#mGrid').addEventListener('click', e => {
+            const b = e.target.closest('.mem-tile');
+            if (!b || b.disabled || done) return;
+            const v = Number(b.dataset.v);
+            b.classList.add('tap'); u.later(160, () => b.classList.remove('tap'));
+            if (v !== seq[pos]) { b.classList.add('wrong'); finish(false); return; }
+            pos++;
+            if (pos === seq.length) finish(true);
+          });
+        },
+        update(u, el) {
+          const A = u.A, alive = u.arr(A.alive);
+          el.querySelector('#mAlive').textContent = `${alive.length} still in`;
+          if (u.now() >= A.inputAt) el.querySelector('#mStatus').textContent = statusLine(u, alive, v => v && typeof v.ok === 'number', 'done');
+        }
+      },
+      lvlres: {
+        build(u, el) {
+          const A = u.A, last = A.last || {}, res = last.res || {};
+          const ids = Object.keys(res);
+          const out = ids.filter(id => !res[id].ok), still = u.arr(A.alive);
+          el.innerHTML = `<p class="eyebrow">Round ${last.lvl} done</p>
+            <p class="outcome">${out.length ? `${u.list(out)} ${out.length > 1 || u.isMe(out[0]) ? 'are' : 'is'} out.` : 'Everyone made it.'}</p>
+            <p class="lede">${still.length} still in: ${u.list(still)}. Next round adds a symbol and goes faster.</p>`;
+        },
+        update() {}
+      }
+    },
+    results(u) {
+      const A = u.A, reach = A.reach || {};
+      const ids = Object.keys(reach).sort((a, b) => (reach[b].win || 0) - (reach[a].win || 0) || reach[b].lvl - reach[a].lvl || reach[b].n - reach[a].n);
+      return `<ol class="res-list">${ids.map((id, i) => `<li class="res-row ${u.isMe(id) ? 'me' : ''} ${reach[id].win ? 'win' : ''}"><span class="res-rank">${i + 1}</span><span class="res-name">${u.esc(u.disp(id))}</span><span class="res-score">${reach[id].win ? 'Last one standing' : `Out in round ${reach[id].lvl}`}</span></li>`).join('')}</ol>`;
+    }
+  };
+
+  /* ---------------- Bar dice ---------------- */
+  const PIPS = { 1: [[50, 50]], 2: [[28, 28], [72, 72]], 3: [[26, 26], [50, 50], [74, 74]], 4: [[28, 28], [72, 28], [28, 72], [72, 72]], 5: [[26, 26], [74, 26], [50, 50], [26, 74], [74, 74]], 6: [[28, 24], [72, 24], [28, 50], [72, 50], [28, 76], [72, 76]] };
+  const dieSVG = v => `<svg viewBox="0 0 100 100" aria-hidden="true">${v ? PIPS[v].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="9" class="${v === 1 ? 'pip ace' : 'pip'}"/>`).join('') : '<text x="50" y="64" text-anchor="middle" class="die-q">?</text>'}</svg>`;
+  const diceRow = (u, dice) => `<span class="dice-mini">${u.arr(dice).map(v => `<span class="dm ${v === 1 ? 'ace' : ''}">${dieSVG(v)}</span>`).join('')}</span>`;
+  UI.dice = {
+    intro(u) {
+      return {
+        what: `Wisconsin bar dice. Everyone shakes 5 dice at the same time and gets up to 3 shakes. After each shake, tap the dice you want to keep and shake the rest. Aces (1s) are wild, and you need at least one ace to score. Most of a kind wins, then the higher number, so three 4s beats two 6s, and five aces count as five 6s. Highest hand wins ${prizeName(u.A)}, and the lowest hand drinks 2.`,
+        part: 'Tap Shake to start. Keep aces, they’re wild.'
+      };
+    },
+    stages: {
+      roll: { build: (u, el) => UI.dice.build(u, el, false), update: (u, el) => UI.dice.update(u, el, false) },
+      rolloff: { build: (u, el) => UI.dice.build(u, el, true), update: (u, el) => UI.dice.update(u, el, true) }
+    },
+    build(u, el, re) {
+      const A = u.A, players = re ? u.arr(A.tied) : u.arr(A.pl), inIt = players.indexOf(u.me) !== -1;
+      const st = u.st;
+      st.dice = [0, 0, 0, 0, 0]; st.held = [false, false, false, false, false]; st.shakes = 0;
+      const max = re ? 1 : 3;
+      el.innerHTML = `${re ? `<p class="lede">Roll-off! ${u.list(players)} tied, so ${players.length > 2 ? 'they each get' : 'each gets'} one shake.</p>` : ''}
+        ${inIt ? `<div class="dice-row" id="dRow">${[0, 1, 2, 3, 4].map(i => `<button type="button" class="die" data-i="${i}" disabled>${dieSVG(0)}<span class="held-tag">HELD</span></button>`).join('')}</div>
+        <p class="dice-score" id="dScore">Shake to start</p>
+        <div class="two"><button type="button" class="btn btn-primary" id="dShake">Shake</button><button type="button" class="btn btn-ghost" id="dKeep" disabled>Keep this hand</button></div>
+        <p class="muted small center" id="dHint">${re ? 'One shake, no keeping.' : 'Tap a die to keep it before your next shake.'}</p>` : '<p class="lede">You’re watching this roll-off.</p>'}
+        <p class="muted small center" id="dStatus"></p>`;
+      if (!inIt) return;
+      const paint = () => {
+        el.querySelectorAll('.die').forEach((b, i) => {
+          b.innerHTML = `${dieSVG(st.dice[i])}<span class="held-tag">HELD</span>`;
+          b.classList.toggle('held', st.held[i]);
+          b.disabled = st.locked || st.shakes === 0 || st.shakes >= max || re;
+        });
+        const sc = IP.diceScore(st.dice);
+        el.querySelector('#dScore').textContent = st.shakes ? (sc ? IP.diceLabel(sc) : 'No ace yet') : 'Shake to start';
+        const left = max - st.shakes;
+        const sh = el.querySelector('#dShake');
+        sh.disabled = st.locked || left <= 0;
+        sh.textContent = st.locked ? 'Locked in' : (left <= 0 ? 'No shakes left' : `Shake${st.shakes ? ` (${left} left)` : ''}`);
+        el.querySelector('#dKeep').disabled = st.locked || !st.shakes;
+      };
+      const lock = () => { st.locked = true; u.input({ dice: st.dice.slice(), shakes: st.shakes, lock: 1 }); paint(); };
+      el.querySelector('#dRow').addEventListener('click', e => {
+        const b = e.target.closest('.die');
+        if (!b || b.disabled) return;
+        const i = Number(b.dataset.i);
+        st.held[i] = !st.held[i];
+        paint();
+      });
+      el.querySelector('#dShake').addEventListener('click', () => {
+        if (st.locked || st.shakes >= max) return;
+        st.dice = st.dice.map((v, i) => (st.shakes && st.held[i]) ? v : 1 + Math.floor(Math.random() * 6));
+        st.shakes++;
+        el.querySelectorAll('.die').forEach((b, i) => { if (!(st.held[i] && st.shakes > 1)) { b.classList.remove('roll'); void b.offsetWidth; b.classList.add('roll'); } });
+        u.vibrate(30);
+        if (st.shakes >= max) lock();
+        else { u.input({ dice: st.dice.slice(), shakes: st.shakes, lock: 0 }); paint(); }
+      });
+      el.querySelector('#dKeep').addEventListener('click', () => { if (!st.locked && st.shakes) lock(); });
+      paint();
+    },
+    update(u, el, re) {
+      const A = u.A, players = re ? u.arr(A.tied) : u.arr(A.pl);
+      el.querySelector('#dStatus').textContent = statusLine(u, players, v => v && v.lock, 'locked in');
+    },
+    results(u) {
+      const A = u.A, R = A.res || {}, scores = A.scores || {}, hands = A.hands || {};
+      const ids = Object.keys(scores).sort((a, b) => scores[b] - scores[a]);
+      const losers = u.arr(R.losers);
+      const rs = A.rscores || {}, rh = A.rhands || {};
+      return `<ol class="res-list">${ids.map((id, i) => `<li class="res-row dice-res ${u.isMe(id) ? 'me' : ''} ${id === R.winner ? 'win' : ''} ${losers.indexOf(id) !== -1 ? 'lose' : ''}"><span class="res-rank">${i + 1}</span><span class="res-name">${u.esc(u.disp(id))}${diceRow(u, hands[id])}</span><span class="res-score">${IP.diceLabel(scores[id])}${rs[id] !== undefined ? `<small>roll-off: ${IP.diceLabel(rs[id]).toLowerCase()}</small>` : ''}</span></li>`).join('')}</ol>
+        <p class="outcome">${R.winner ? `${u.esc(u.disp(R.winner))} rolled the best hand${R.rolloff ? ' after a roll-off' : ''}.` : 'Nobody rolled an ace.'}${losers.length ? ` ${u.list(losers)} had the lowest hand.` : ''}</p>`;
     }
   };
 

@@ -14,14 +14,20 @@
     trap: { name: 'Trapdoor', label: 'TRAPDOOR' },
     chairs: { name: 'Musical chairs', label: 'CHAIRS' },
     odd: { name: 'Odd one out', label: 'ODD ONE' },
+    twins: { name: 'Twins', label: 'TWINS' },
+    shell: { name: 'Shell game', label: 'SHELLS' },
     auction: { name: 'Auction', tag: 'Bluff' },
     imposter: { name: 'Imposter', tag: 'Deception' },
     price: { name: 'Guess the Price', tag: 'Shopping' },
-    cah: { name: 'Cards Against Humanity', tag: 'Cards' }
+    cah: { name: 'Cards Against Humanity', tag: 'Cards' },
+    memory: { name: 'Memory', tag: 'Last one standing' },
+    dice: { name: 'Bar dice', tag: 'Wisconsin rules' }
   };
-  IP.MINI_KINDS = ['auction', 'imposter', 'price', 'cah'];
+  // Six mini games; each game plays four of them in a random order.
+  IP.MINI_KINDS = ['auction', 'imposter', 'price', 'cah', 'memory', 'dice'];
+  IP.MINIS_PER_GAME = 4;
 
-  // Same layout every round: three drink slices and five wheel games.
+  // Same layout every round: three drink slices and seven wheel games.
   IP.wheelFor = function (round) {
     const d = IP.DRINKS[round] || IP.DRINKS[1];
     return {
@@ -30,13 +36,75 @@
         { type: 'drinks', n: d[0] },
         { type: 'vote' },
         { type: 'potato' },
+        { type: 'twins' },
         { type: 'drinks', n: d[1] },
         { type: 'trap' },
         { type: 'chairs' },
         { type: 'drinks', n: d[2] },
-        { type: 'odd' }
+        { type: 'odd' },
+        { type: 'shell' }
       ]
     };
+  };
+
+  /* Shared helpers so the host and every phone compute the same thing from a seed. */
+  IP.mulberry32 = function (seed) {
+    let a = seed >>> 0;
+    return function () { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  };
+
+  // Shell game: cups (by id) start at slots 0..n-1; each step swaps the cups in one or two pairs of slots.
+  // Steps speed up from about 0.45 s to 0.17 s.
+  IP.SHELL = { cups: r => (r >= 3 ? 5 : 4), swaps: r => [0, 15, 18, 22, 25][r] || 18, reveal: 1500 };
+  IP.shellPlan = function (seed, cups, swaps) {
+    const rng = IP.mulberry32(seed);
+    const steps = [];
+    for (let i = 0; i < swaps; i++) {
+      const ms = Math.round(450 - (280 * i) / Math.max(1, swaps - 1));
+      const slots = [];
+      for (let s = 0; s < cups; s++) slots.push(s);
+      for (let k = slots.length - 1; k > 0; k--) { const j = Math.floor(rng() * (k + 1)); const t = slots[k]; slots[k] = slots[j]; slots[j] = t; }
+      const pairs = [[slots[0], slots[1]]];
+      if (cups >= 4 && i > 2 && rng() < 0.35) pairs.push([slots[2], slots[3]]);
+      steps.push({ ms, pairs });
+    }
+    return { steps, total: steps.reduce((a, s) => a + s.ms, 0) };
+  };
+
+  // Memory: one long seeded sequence; level L shows the first L+2 symbols, faster every level.
+  IP.MEMORY_SYMBOLS = ['Pumpkin', 'Ghost', 'Bat', 'Skull', 'Moon', 'Spider'];
+  IP.memorySeq = function (seed, len) {
+    const rng = IP.mulberry32(seed), out = [];
+    while (out.length < len) {
+      const v = Math.floor(rng() * 6);
+      if (out.length >= 2 && out[out.length - 1] === v && out[out.length - 2] === v) continue;
+      out.push(v);
+    }
+    return out;
+  };
+  IP.memoryPlan = function (level) {
+    const len = level + 2;
+    const on = Math.max(230, 640 - 45 * (level - 1));
+    const gap = Math.max(80, 200 - 14 * (level - 1));
+    return { len, on, gap, lead: 800, show: 800 + len * (on + gap), input: 4000 + len * 900 };
+  };
+
+  // Bar dice (Wisconsin rules): aces are wild and you need at least one ace to score.
+  // A score of 56 means five 6s, 34 means three 4s. Five aces count as five 6s.
+  IP.diceScore = function (dice) {
+    const d = (dice || []).map(Number).filter(v => v >= 1 && v <= 6);
+    if (d.length !== 5) return 0;
+    const aces = d.filter(v => v === 1).length;
+    if (!aces) return 0;
+    if (aces === 5) return 56;
+    let best = 0;
+    for (let f = 2; f <= 6; f++) best = Math.max(best, (d.filter(v => v === f).length + aces) * 10 + f);
+    return best;
+  };
+  IP.diceLabel = function (score) {
+    if (!score) return 'No ace';
+    const c = Math.floor(score / 10), f = score % 10;
+    return `${['', 'One', 'Two', 'Three', 'Four', 'Five'][c]} ${f}s`;
   };
   IP.sliceLabel = s => s.type === 'drinks' ? `${s.n} DRINK${s.n === 1 ? '' : 'S'}` : IP.ACT_INFO[s.type].label;
 
