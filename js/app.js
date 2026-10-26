@@ -799,7 +799,7 @@
   function introHTML(u) {
     const A = u.A, it = IP.ACT_UI[A.kind].intro(u);
     const what = it.html ? it.what : esc(it.what);
-    return `${A.res && A.res.skip ? '' : ''}${it.tag ? `<p><span class="tag">${esc(it.tag)}</span></p>` : ''}
+    return `${it.banner || ''}${it.tag ? `<p><span class="tag">${esc(it.tag)}</span></p>` : ''}
       <p class="how">${what}</p>
       ${it.extra ? `<p class="how small-how">${esc(it.extra)}</p>` : ''}
       <div class="part"><p class="eyebrow">Your part</p><p>${esc(it.part)}</p></div>

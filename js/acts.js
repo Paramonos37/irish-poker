@@ -58,6 +58,11 @@
     return out;
   }
   const blackHTML = (u, t) => `<div class="cah-black"><p>${u.esc(t).replace(/_/g, '<span class="blank">______</span>')}</p><span class="cah-mark">Cards Against Humanity</span></div>`;
+  // Big, unmissable "who has the black card" banner, shown on every Cards Against Humanity screen.
+  const judgeBanner = (u, verb) => {
+    const j = u.A.d.judge, me = u.isMe(j);
+    return `<div class="judge-tag ${me ? 'me' : ''}"><span class="judge-card" aria-hidden="true"></span><div><p class="eyebrow">${me ? 'The black card is yours' : 'Black card goes to'}</p><p class="judge-name">${me ? 'You’re the judge' : u.esc(u.nameOf(j))}</p><p class="judge-sub">${u.esc(verb)}</p></div></div>`;
+  };
 
   const UI = {};
 
@@ -559,7 +564,9 @@
   UI.cah = {
     intro(u) {
       const A = u.A, judge = A.d.judge;
+      if (u.isMe(judge) && !u.st.buzzed) { u.st.buzzed = true; u.vibrate([120, 60, 120]); }
       return {
+        banner: judgeBanner(u, u.isMe(judge) ? 'You read the cards and pick the winner. You don’t play a card this round.' : `${u.nameOf(judge)} reads the cards and picks the winner.`),
         what: `${u.isMe(judge) ? 'You are' : u.esc(u.nameOf(judge)) + ' is'} the judge and gets the black card. Everyone else gets 7 white cards and has 45 seconds to play the funniest one${A.d.pick === 2 ? ' (this black card takes 2, in order)' : ''}. The judge reads them all out loud and picks a winner, who gets ${prizeName(A)}. One random card from the deck gets played too, and if it wins, nobody gets the prize.`,
         part: u.isMe(judge) ? 'You’re the judge this round. Read every card out loud.' : 'You’ll get 7 white cards. Pick your funniest.',
         html: true
@@ -571,8 +578,8 @@
         build(u, el) {
           const A = u.A, d = A.d, judge = u.isMe(d.judge);
           u.st.sel = [];
-          el.innerHTML = `${blackHTML(u, UI.cah.black(u))}
-            ${judge ? `<p class="lede">You’re the judge. Wait for everyone to play.</p>` : `<p class="eyebrow">${d.pick === 2 ? 'Pick 2, in order' : 'Pick 1'}</p>
+          el.innerHTML = `${judgeBanner(u, judge ? 'Wait while everyone plays a card.' : 'Play your funniest card for them.')}${blackHTML(u, UI.cah.black(u))}
+            ${judge ? `<p class="lede">Everyone else is picking a card. You’ll read them all out next.</p>` : `<p class="eyebrow">${d.pick === 2 ? 'Pick 2, in order' : 'Pick 1'}</p>
               <div class="cah-hand" id="cHand">${u.arr(d.hands[u.me]).map(i => `<button type="button" class="cah-white" data-i="${i}"><span class="ord"></span>${u.esc(IP.CAH.white[i])}</button>`).join('')}</div>
               <button type="button" class="btn btn-primary btn-block" id="cPlay" disabled>Play ${d.pick === 2 ? 'these' : 'this card'}</button>`}
             <p class="muted small center" id="cStatus"></p>`;
@@ -606,8 +613,7 @@
       judge: {
         build(u, el) {
           const A = u.A, d = A.d, judge = u.isMe(d.judge), subs = u.arr(A.subs), black = UI.cah.black(u);
-          el.innerHTML = `${blackHTML(u, black)}
-            <p class="lede">${judge ? 'Read each one out loud, then tap your favorite.' : `${u.esc(u.nameOf(d.judge))} is reading them out…`}</p>
+          el.innerHTML = `${judgeBanner(u, judge ? 'Read each one out loud, then tap your favorite.' : 'Reading them out and picking a winner…')}${blackHTML(u, black)}
             <div class="cah-subs" id="cSubs">${subs.map((s, i) => `<button type="button" class="cah-sub" data-v="${i}" ${judge ? '' : 'disabled'}><span class="num">${i + 1}</span><span>${fillBlack(u, black, u.arr(s.c).map(x => IP.CAH.white[x]))}</span></button>`).join('')}</div>
             ${judge ? '<button type="button" class="btn btn-primary btn-block" id="cPick" disabled>Pick this one</button>' : ''}`;
           if (!judge) return;
@@ -622,7 +628,7 @@
       const A = u.A, R = A.res || {}, subs = u.arr(A.subs), black = UI.cah.black(u);
       const win = subs[R.choice];
       const owner = s => s.o === 'rando' ? 'Rando (random card)' : u.disp(s.o);
-      return `${win ? `<div class="cah-win"><p class="eyebrow">Winning card</p><p class="cah-win-txt">${fillBlack(u, black, u.arr(win.c).map(x => IP.CAH.white[x]))}</p><p class="muted">played by <b>${u.esc(owner(win))}</b></p></div>` : ''}
+      return `<p class="muted">Judged by <b>${u.esc(u.disp(A.d.judge))}</b></p>${win ? `<div class="cah-win"><p class="eyebrow">Winning card</p><p class="cah-win-txt">${fillBlack(u, black, u.arr(win.c).map(x => IP.CAH.white[x]))}</p><p class="muted">played by <b>${u.esc(owner(win))}</b></p></div>` : ''}
         <ul class="cah-all">${subs.map((s, i) => i === R.choice ? '' : `<li><span>${fillBlack(u, black, u.arr(s.c).map(x => IP.CAH.white[x]))}</span><small>${u.esc(owner(s))}</small></li>`).join('')}</ul>
         <p class="outcome">${R.rando ? 'Rando won, so nobody gets the prize.' : ''}</p>
         <p class="credit">${u.esc(IP.CAH.credit)}</p>`;
