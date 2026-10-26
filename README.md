@@ -15,11 +15,11 @@ Live: https://paramonos37.github.io/irish-poker/
   - 7 games everyone plays on their phone: **Phone vote**, **Hot potato**, **Twins**, **Trapdoor**, **Musical chairs**, **Odd one out** and **Shell game**. The loser drinks 2 in round 1 up to 5 in round 4. If the spinner guessed right, they sit the game out (they still vote, and in Hot potato they throw first and can't be passed to). If they guessed wrong, they drink 1 and play.
   - **Twins:** everyone secretly picks 1 to 25. Anyone whose number matches someone else's drinks. If nobody matches, it's a social and everyone drinks 1.
   - **Shell game:** a skull goes under one of 4 red cups (5 from round 3). The cups shuffle 15 to 25 times, speeding up and sometimes swapping two pairs at once, in sync on every phone. Pick the wrong cup and you drink.
-- **Mini games**, one after every round, 4 picked at random each game from 6: **Auction**, **Imposter**, **Guess the Price**, **Cards Against Humanity**, **Memory** and **Bar dice**. Winning one after rounds 1 to 3 gets you a Shield. The final mini game after round 4 is for bragging rights.
+- **Mini games**, one after every round, 4 picked at random each game from 5: **Imposter**, **Guess the Price**, **Cards Against Humanity**, **Memory** and **Bar dice**. Winning one after rounds 1 to 3 gets you a Shield. The final mini game after round 4 is for bragging rights.
   - **Memory:** a sequence of Halloween symbols flashes on every phone. Tap it back. Each round adds a symbol and flashes faster. One miss and you're out. Last one standing wins.
   - **Bar dice** (Wisconsin rules): 5 dice, up to 3 shakes, tap dice to keep them. Aces are wild and you need one to score. Most of a kind wins, then the higher number (five aces count as five 6s). Ties roll off with one shake. The lowest hand drinks 2.
   - **Guess the Price:** every product has a real photo. A product doesn't come back until every product has been played (the list of played products is saved in Firebase under `history/products`).
-- **Shields** block any punishment that lands on you. When you'd have to drink, your phone asks if you want to use one. Auction bids can't be blocked.
+- **Shields** block any punishment that lands on you. When you'd have to drink, your phone asks if you want to use one.
 - **Nothing starts until everyone's ready:** every wheel game and mini game opens with an explainer on every phone, and it waits until every player taps "Got it". The host can start without waiting if someone wandered off, and can skip a game that's stuck.
 
 The host's phone runs the game: it deals, spins, times the games and plays for any bots. If the host's phone drops off for more than 12 seconds, anyone gets a **Take over as host** button and the game carries on.

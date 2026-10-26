@@ -24,7 +24,7 @@
     dice: { name: 'Bar dice', tag: 'Wisconsin rules' }
   };
   // Six mini games; each game plays four of them in a random order.
-  IP.MINI_KINDS = ['auction', 'imposter', 'price', 'cah', 'memory', 'dice'];
+  IP.MINI_KINDS = ['imposter', 'price', 'cah', 'memory', 'dice'];
   IP.MINIS_PER_GAME = 4;
 
   // Same layout every round: three drink slices and seven wheel games.

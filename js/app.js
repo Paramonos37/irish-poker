@@ -49,7 +49,7 @@
         <li><b>In between or outside?</b><span>Of your first two cards. Matching either one means everyone drinks.</span></li>
         <li><b>Guess the suit</b><span>One in four, with the wildest wheel.</span></li>
       </ol>
-      <p class="rule-foot">Every guess spins the wheel: three drink slices plus five games everyone plays on their phones (phone vote, hot potato, trapdoor, musical chairs, odd one out). Guess right and you hand the drinks out or sit the game out. Guess wrong and you drink, then play. After every round there’s a mini game: Auction, Imposter, Guess the Price or Cards Against Humanity. Winning one gets you a Shield that blocks a punishment. Nothing starts until everyone taps “Got it”.</p>
+      <p class="rule-foot">Every guess spins the wheel: three drink slices plus seven games everyone plays on their phones (phone vote, hot potato, twins, trapdoor, musical chairs, odd one out, shell game). Guess right and you hand the drinks out or sit the game out. Guess wrong and you drink, then play. After every round there’s a mini game: Imposter, Guess the Price, Cards Against Humanity, Memory or Bar dice. Winning one gets you a Shield that blocks a punishment. Nothing starts until everyone taps “Got it”.</p>
     </section>`;
 
   /* ---------- client state ---------- */
