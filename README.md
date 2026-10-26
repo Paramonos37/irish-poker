@@ -1,58 +1,44 @@
 # Irish Poker
 
-A Halloween party card game that everyone plays on their own phone. Four rounds of guessing (red or black, higher or lower, in between or outside, the suit), a punishment wheel for every guess, Shields that skip a punishment, and a random mini game after each round.
+A Halloween party card game that everyone plays on their own phone. Four rounds of guessing (red or black, higher or lower, in between or outside, the suit), a wheel full of games after every guess, Shields that block a punishment, and a mini game after every round.
 
-- **Online:** the host opens a room and gets a 4-letter code. Everyone else opens the site, types their name and the code, and plays from their own phone. Every phone sees the cards flip and the wheel spin at the same time.
+Live: https://paramonos37.github.io/irish-poker/
+
+- **Online:** the host opens a room and gets a 4-letter code. Everyone else opens the site, types their name and the code, and plays from their own phone.
 - **Practice:** "Practice against bots" runs the whole game on one phone with no setup.
 
-## How the game runs
+## How a game runs
 
-The host's phone runs the game. It deals, spins the wheel, times the mini games and plays for any bots. Everyone else's phone sends their taps (guesses, picks, Shields, mini-game scores) and draws what the room shows. If the host's phone drops off for more than 12 seconds, anyone gets a **Take over as host** button and the game carries on from where it was.
+- **Rounds:** everyone takes a turn on card 1, then card 2, and so on. Jack, queen and king are high, aces are 1. A tie in round 2, or matching either card in round 3, means everyone drinks.
+- **The wheel** (same layout every round, 8 slices):
+  - 3 drink slices that climb each round (1/2/3 drinks in round 1 up to 4/5/6 in round 4). Guess right and you hand them out. Guess wrong and you take them.
+  - 5 games everyone plays on their phone: **Phone vote**, **Hot potato**, **Trapdoor**, **Musical chairs** and **Odd one out**. The loser drinks 2 in round 1 up to 5 in round 4. If the spinner guessed right, they sit the game out (they still vote, and in Hot potato they throw first and can't be passed to). If they guessed wrong, they drink 1 and play.
+- **Mini games**, one after every round, each played once per game in random order: **Auction**, **Imposter**, **Guess the Price** and **Cards Against Humanity**. Winning one after rounds 1 to 3 gets you a Shield. The final mini game after round 4 is for bragging rights.
+- **Shields** block any punishment that lands on you. When you'd have to drink, your phone asks if you want to use one. Auction bids can't be blocked.
+- **Nothing starts until everyone's ready:** every wheel game and mini game opens with an explainer on every phone, and it waits until every player taps "Got it". The host can start without waiting if someone wandered off, and can skip a game that's stuck.
 
-- Rounds: everyone takes a turn on card 1, then card 2, and so on. Jack, queen and king are high, aces are 1. A tie in round 2, or matching either card in round 3, means everyone drinks.
-- Wheels: one per round, eight slices each, getting wilder each round. Guess right and you hand it out. Guess wrong and it's yours, unless you play a Shield.
-- Mini games after rounds 1 to 3 win a Shield (hold up to 2; a third becomes a bonus point). The mini game after round 4 is worth a bonus point.
-- Mini games: Cup Shot, Quick Draw, Stop the Clock, Ghost Whack, Shake the Cauldron, Simon Spooks and Speed Bus. Each game uses a different one, with no repeats.
-- The host can edit all four wheels from the lobby. Edited wheels are remembered on the host's phone for the next game.
+The host's phone runs the game: it deals, spins, times the games and plays for any bots. If the host's phone drops off for more than 12 seconds, anyone gets a **Take over as host** button and the game carries on.
 
-## Setup (about 10 minutes, once)
+## Setup
 
-### 1. Firebase (keeps the phones in sync, free)
-
-1. Go to [console.firebase.google.com](https://console.firebase.google.com) and click **Add project**. Name it `irish-poker`. You can turn off Google Analytics.
-2. In the left menu open **Build → Realtime Database → Create database**. Pick a US location and **Start in locked mode**.
-3. Open the **Rules** tab of the database, replace everything with the contents of `database.rules.json` from this repo, and click **Publish**.
-4. Click the gear icon → **Project settings** → **Your apps** → the web icon (`</>`). Register the app (no hosting needed) and copy the `firebaseConfig` object it shows.
-5. Paste that object into `js/config.js` in place of `null`, so it reads `window.FIREBASE_CONFIG = { apiKey: "...", ... };`. Make sure it includes `databaseURL`.
-
-The Firebase web config is not a secret: it only identifies the project. The database rules decide what can be read and written.
-
-### 2. GitHub Pages (the link you send people)
-
-1. Push this repo to GitHub as a **public** repository.
-2. In the repo go to **Settings → Pages**, set **Source** to *Deploy from a branch*, pick `main` and `/ (root)`, and save.
-3. After a minute the site is live at `https://<your-username>.github.io/irish-poker/`.
-
-### 3. Test before the party
-
-Open the site on two phones. Host on one, join with the code on the other, add a couple of bots, and play a round plus one mini game.
-
-## Tips for the night
-
-- The host should keep the game open with the screen on. The site asks the phone to stay awake, but a low-power mode can still lock it.
-- Room links work too: `https://<your-username>.github.io/irish-poker/?room=ABCD` fills in the code.
-- If someone's phone dies mid-game, they open the link again with the same phone and land back in their seat.
-- Shake the Cauldron asks for motion access on iPhones. If someone says no, they play it by tapping instead.
+1. Firebase project with a Realtime Database (free Spark plan). Paste the rules from `database.rules.json` into the database's Rules tab.
+2. Put the web app config in `js/config.js`.
+3. GitHub Pages serves the `main` branch from the root.
 
 ## Files
 
 - `index.html`, `css/styles.css`: the page and its look.
-- `js/config.js`: your Firebase settings.
-- `js/wheels.js`: the default punishment wheels.
+- `js/config.js`: Firebase settings.
+- `js/content.js`: the wheels, phone-vote questions, odd-one-out pairs and Imposter words.
+- `js/products.js`: Guess the Price products with prices checked in October 2026. Refresh them before a future party.
+- `js/cah.js`: Cards Against Humanity card text (see below).
 - `js/engine.js`: the game rules, run by the host's phone.
-- `js/minimeta.js`, `js/minis.js`: mini-game rules and screens.
+- `js/acts.js`: the wheel game and mini game screens.
+- `js/app.js`: everything else on screen.
 - `js/db.js`: Firebase and the offline practice backend.
-- `js/app.js`: all the screens.
-- `database.rules.json`: Firebase rules to paste in during setup.
 
-Free-plan limits: Firebase's Spark plan allows 100 phones connected at once, far more than a party needs. It stops rather than charging if a limit is ever hit.
+## Cards Against Humanity
+
+The card text in `js/cah.js` is the Cards Against Humanity base set, used under the [Creative Commons BY-NC-SA 2.0 license](https://creativecommons.org/licenses/by-nc-sa/2.0/) that Cards Against Humanity LLC releases it under, compiled from [JSON Against Humanity](https://github.com/crhallberg/json-against-humanity) (CC BY-NC-SA 4.0). This project isn't affiliated with or endorsed by Cards Against Humanity. Because of that license, this game must stay free and non-commercial, and the card file stays under the same license. A handful of cards about kids were left out on purpose.
+
+Free-plan limits: Firebase's Spark plan allows 100 phones connected at once. It stops rather than charging if a limit is ever hit.
