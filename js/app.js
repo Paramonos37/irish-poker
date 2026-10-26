@@ -33,7 +33,11 @@
     x: '<svg class="ico line" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
     star: '<svg class="ico full" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>',
     crown: '<svg class="ico line crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.5 4 4.5-7 4.5 7L21 8l-2 11H5L3 8z"/></svg>',
-    copy: '<svg class="ico line" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h10v10H9zM5 15V5h10"/></svg>'
+    copy: '<svg class="ico line" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h10v10H9zM5 15V5h10"/></svg>',
+    buzz: '<svg class="ico line" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM11 17.5h2M3 8.5v7M21 8.5v7"/></svg>',
+    info: '<svg class="ico line" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M12 11v5M12 7.5h.01"/></svg>',
+    inside: '<svg class="ico line" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h6M6 9l3 3-3 3M21 12h-6M18 9l-3 3 3 3"/></svg>',
+    outside: '<svg class="ico line" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 12H3M6 9l-3 3 3 3M14 12h7M18 9l3 3-3 3"/></svg>'
   };
   const FAN = `<div class="fan" aria-hidden="true">
       <span class="fcard red" style="--x:-96px;--r:-14deg"><span class="rk">9</span><span class="st">${SUIT_CH.d}</span></span>
@@ -83,6 +87,7 @@
     const n = ids.map((id, i) => esc(isMe(id) ? (i === 0 ? 'You' : 'you') : nameOf(id)));
     return n.length <= 1 ? (n[0] || '') : n.slice(0, -1).join(', ') + ' and ' + n[n.length - 1];
   };
+  const initial = pid => (pid === 'rando' ? 'R' : (nameOf(pid) || '?').charAt(0).toUpperCase());
   const curSlice = () => { const g = G(); return g && typeof g.slice === 'number' ? IP.wheelFor(g.round).slices[g.slice] : null; };
 
   function announce(t) { const el = $('#sr'); el.textContent = ''; setTimeout(() => { el.textContent = t; }, 40); }
@@ -332,6 +337,7 @@
     else view = 'turns:' + g.key;
     if (view !== C.view) {
       C.view = view;
+      closeTurnPop(true);
       closeOverlay(); C.ovKey = null;
       clearStageTimers();
       const kind = view.split(':')[0];
@@ -411,7 +417,7 @@
   function questionFor(pid, r, hand) {
     const c = hand, who = poss(pid);
     if (r === 1) return ['Red or black?', `Guess the color of ${who} first card.`];
-    if (r === 2) return ['Higher or lower?', `Than ${who} ${cardText(c[0])}. Jack, queen and king are high, aces are 1. A tie means everyone drinks.`];
+    if (r === 2) return [`Higher or lower than ${who} ${cardText(c[0])}?`, 'Jack, queen and king are high, aces are 1. A tie means everyone drinks.'];
     if (r === 3) {
       if (c[0].r === c[1].r) return ['In between or outside?', `Both cards are ${rankLabel(c[0].r)}s, so only outside can win. Another ${rankLabel(c[0].r)} means everyone drinks.`];
       return ['In between or outside?', `Of the ${cardText(c[0])} and ${cardText(c[1])}. Matching either one means everyone drinks.`];
@@ -419,9 +425,9 @@
     return ['Guess the suit', 'One in four. Hit it and you get the wildest wheel.'];
   }
   function guessOptions(r) {
-    if (r === 1) return [{ id: 'red', cls: 'red', html: 'Red' }, { id: 'black', cls: 'black', html: 'Black' }];
-    if (r === 2) return [{ id: 'higher', cls: 'btn-primary', html: ICON.up + '<span>Higher</span>' }, { id: 'lower', cls: 'btn-bone', html: ICON.down + '<span>Lower</span>' }];
-    if (r === 3) return [{ id: 'between', cls: 'btn-primary', html: 'In between' }, { id: 'outside', cls: 'btn-bone', html: 'Outside' }];
+    if (r === 1) return [{ id: 'red', cls: 'red', html: `<span class="sym">${SUIT_CH.h}</span><span>Red</span>` }, { id: 'black', cls: 'black', html: `<span class="sym">${SUIT_CH.s}</span><span>Black</span>` }];
+    if (r === 2) return [{ id: 'higher', cls: 'boneb', html: ICON.up + '<span>Higher</span>' }, { id: 'lower', cls: 'boneb', html: ICON.down + '<span>Lower</span>' }];
+    if (r === 3) return [{ id: 'between', cls: 'boneb', html: ICON.inside + '<span>In between</span>' }, { id: 'outside', cls: 'boneb', html: ICON.outside + '<span>Outside</span>' }];
     return SUITS.map(s => ({ id: s, cls: 'suit', html: `<span class="sym ${isRed(s) ? 'red' : ''}">${SUIT_CH[s]}</span><span>${SUIT_NAME[s]}</span>` }));
   }
   function guessLabel(r, g) {
@@ -432,18 +438,24 @@
     const state = up ? 'up' : (i === r - 1 ? 'current' : (i > r - 1 ? 'future' : ''));
     return `<div class="slot ${state}" data-i="${i}"><div class="flip ${up ? 'is-up instant' : ''}"><div class="side back">${(i === r - 1 && !up) ? '<span class="q">?</span>' : ''}</div><div class="side front ${isRed(c.s) ? 'red' : ''}"><span class="rk">${rankLabel(c.r)}</span><span class="big">${SUIT_CH[c.s]}</span><span class="sm">${SUIT_CH[c.s]}</span></div></div></div>`;
   }
-  function miniCard(c, hl) { return `<span class="mc lg ${isRed(c.s) ? 'red' : ''} ${hl ? 'hl' : ''}">${rankLabel(c.r)}<i>${SUIT_CH[c.s]}</i></span>`; }
+  function miniCard(c, hl, small) { return `<span class="mc ${small ? '' : 'lg'} ${isRed(c.s) ? 'red' : ''} ${hl ? 'hl' : ''}">${rankLabel(c.r)}<i>${SUIT_CH[c.s]}</i></span>`; }
 
   function buildTurns() {
-    setMain(`<section class="screen" aria-label="Game table">
+    setMain(`<section class="screen table-screen" aria-label="Game table">
       <div class="topbar"><p class="eyebrow" id="gRound"></p><div class="mystats" id="gStats"></div></div>
-      <div class="turn"><p class="turn-who" id="gWho"></p><h2 class="display" id="gQ"></h2><p class="muted" id="gHelp"></p></div>
-      <div class="felt"><p class="eyebrow" id="gHandLabel"></p><div class="hand" id="gHand"></div></div>
+      <div id="gTop"></div>
+      <div class="turn-q"><h2 class="display" id="gQ"></h2><p class="muted" id="gHelp"></p></div>
+      <div class="hand" id="gHand" role="group"></div>
       <div class="guess" id="gGuess"></div>
-      <div class="botbar"><p class="muted" id="gWait" aria-live="polite"></p><div id="gHostbar"></div></div>
-      <div class="feed-wrap"><p class="eyebrow">What just happened</p><ul class="feed" id="gFeed"></ul></div>
-      <div class="table-wrap"><div class="table-head"><h3 class="h3">At the table</h3><p class="muted small" id="gNext"></p></div><div class="seats" id="gSeats"></div></div>
-      ${leaveRow('Leave game')}
+      <div class="botbar"><p class="status-pill" id="gWait" aria-live="polite"></p><div id="gHostbar"></div></div>
+      <div class="tsheet">
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <div class="table-head"><h3 class="eyebrow">At the table</h3><p class="muted small" id="gNext"></p></div>
+        <ul class="prow-list" id="gSeats"></ul>
+        <h3 class="eyebrow">Just happened</h3>
+        <ul class="feed" id="gFeed"></ul>
+        ${leaveRow('Leave game')}
+      </div>
     </section>`);
     $('#gGuess').addEventListener('click', e => {
       const b = e.target.closest('button[data-g]');
@@ -460,39 +472,46 @@
     const S = C.S, g = S.game, order = arr(g.order), pid = order[g.turn], hand = arr(g.hands[pid]);
     const key = g.key + ':' + g.turnId;
     const me = isMe(pid);
+    const name = nameOf(pid);
+    const nextId = order[g.turn + 1];
+    const upNext = !me && !!nextId && isMe(nextId);
     if (C.turnKey !== key) {
       C.turnKey = key;
       const rc = IP.rules.revealedCount(g, pid);
       C.flipped = g.step !== 'guess';
       $('#gRound').textContent = `Round ${g.round} of 4 · ${IP.ROUND_NAMES[g.round]}`;
-      const who = $('#gWho');
-      who.textContent = me ? 'Your turn' : `${nameOf(pid)}’s turn`;
-      who.classList.toggle('mine', me);
+      $('#gTop').innerHTML = me
+        ? `<div class="turn-banner"><span class="tb-ico">${ICON.buzz}</span><div><p class="tb-title">Your turn</p><p class="tb-sub">Round ${g.round} · ${esc(IP.ROUND_NAMES[g.round])}</p></div></div>`
+        : `<div class="turn-head"><span class="av lg" aria-hidden="true">${esc(initial(pid))}</span><h1 class="display turn-title">${esc(name)}’s turn</h1></div>${upNext ? '<p class="upnext">You’re up next</p>' : ''}`;
       const qh = questionFor(pid, g.round, hand);
       $('#gQ').textContent = qh[0];
       $('#gHelp').textContent = qh[1];
-      $('#gHandLabel').textContent = me ? 'Your cards' : `${nameOf(pid)}’s cards`;
+      $('#gHand').setAttribute('aria-label', me ? 'Your cards' : `${name}’s cards`);
       $('#gHand').innerHTML = hand.map((c, i) => slotHTML(c, i, i < rc, g.round)).join('');
       const opts = guessOptions(g.round);
-      $('#gGuess').innerHTML = opts.map(o => `<button type="button" class="btn gbtn ${o.cls} ${g.guess === o.id ? 'picked' : ''}" data-g="${o.id}" ${me && g.step === 'guess' ? '' : 'disabled'}>${o.html}</button>`).join('');
+      $('#gGuess').innerHTML = me ? opts.map(o => `<button type="button" class="btn gbtn ${o.cls} ${g.guess === o.id ? 'picked' : ''}" data-g="${o.id}" ${g.step === 'guess' ? '' : 'disabled'}>${o.html}</button>`).join('') : '';
       if (me && g.step === 'guess') {
         announce('Your turn. ' + qh[0]);
-        vibrate([40, 60, 40]);
+        turnPop(qh[0]);
         window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+      } else if (upNext && C.nextBuzz !== key) {
+        C.nextBuzz = key;
+        vibrate(35);
+        announce('You’re up next.');
       }
     }
     if (g.step !== 'guess' && !C.flipped) {
       C.flipped = true;
       flipCard(g.round - 1, now() - g.stepAt < 1500);
       $$('#gGuess button').forEach(b => { b.disabled = true; b.classList.toggle('picked', b.dataset.g === g.guess); });
+      closeTurnPop();
     }
     const p = players()[pid] || {};
     const away = p.online === false && !p.bot;
-    const name = nameOf(pid);
     let wait = '';
-    if (me) wait = g.step === 'guess' ? 'Make your guess.' : '';
+    if (me) wait = g.step === 'guess' ? '' : '';
     else if (away) wait = `${name} has dropped off. The host can skip their turn.`;
-    else wait = ({ guess: `${name} is thinking…`, spin: `${name} is spinning the wheel…`, pick: `${name} is handing out drinks…`, pen: 'Shield check…', done: `Waiting for ${name} to tap Next…` })[g.step] || '';
+    else wait = ({ guess: `${name} is deciding…`, spin: `${name} is spinning the wheel…`, pick: `${name} is handing out drinks…`, pen: 'Shield check…', done: `Waiting for ${name} to tap Next…` })[g.step] || '';
     $('#gWait').textContent = wait;
     const hb = $('#gHostbar');
     const canSkip = isHost() && !me && !p.bot && ['guess', 'pick'].indexOf(g.step) !== -1;
@@ -502,6 +521,29 @@
     const nxt = g.turn + 1;
     $('#gNext').textContent = nxt < order.length ? `Up next: ${disp(order[nxt])}` : 'Mini game after this turn';
     renderOverlay();
+  }
+
+  // The big "your turn" pop-up: buzzes the phone and shows for a couple of seconds, tap to close.
+  function turnPop(q) {
+    vibrate([70, 70, 70, 70, 160]);
+    closeTurnPop(true);
+    const el = document.createElement('div');
+    el.id = 'turnPop';
+    el.className = 'turn-pop';
+    el.setAttribute('role', 'alert');
+    el.innerHTML = `<div class="tp-card"><span class="tp-ico">${ICON.buzz}</span><p class="tp-title">Your turn</p><p class="tp-q">${esc(q)}</p><p class="tp-tap">Tap anywhere to play</p></div>`;
+    document.body.appendChild(el);
+    el.addEventListener('click', () => closeTurnPop());
+    clearTimeout(C.popTimer);
+    C.popTimer = setTimeout(() => closeTurnPop(), 2600);
+  }
+  function closeTurnPop(now) {
+    clearTimeout(C.popTimer);
+    const el = $('#turnPop');
+    if (!el) return;
+    if (now || reduceMotion) { el.remove(); return; }
+    el.classList.add('out');
+    setTimeout(() => el.remove(), 220);
   }
 
   function flipCard(i, animate) {
@@ -519,25 +561,29 @@
   const shieldPips = n => n > 2 ? `${ICON.shield(true)}<b class="sh-n">×${n}</b>` : ICON.shield(n >= 1) + ICON.shield(n >= 2);
   function renderStats() {
     const st = stats(C.pid), n = st.shields || 0;
-    $('#gStats').innerHTML = `<span><b>${st.points || 0}</b> pts</span><span class="shields" role="img" aria-label="${n} Shield${n === 1 ? '' : 's'}">${shieldPips(n)}</span><span><b>${st.taken || 0}</b> drinks</span>`;
+    $('#gStats').innerHTML = `<span class="stat"><b>${st.points || 0}</b> pts</span><span class="stat shields" role="img" aria-label="${n} Shield${n === 1 ? '' : 's'}">${shieldPips(n)}</span><span class="stat"><b>${st.taken || 0}</b> drinks</span>`;
   }
   function renderFeed() {
     const g = G(), el = $('#gFeed');
     if (!el || !g) return;
     const f = g.feed || {};
-    const keys = Object.keys(f).sort().reverse().slice(0, 6);
+    const keys = Object.keys(f).sort().reverse().slice(0, 4);
     el.innerHTML = keys.length ? keys.map(k => `<li class="${arr(f[k].w).indexOf(C.pid) !== -1 ? 'mine' : ''}">${esc(fmtFeed(f[k].t))}</li>`).join('') : '<li>Nothing yet. The first card is about to flip.</li>';
   }
   function renderSeats() {
     const g = G(), el = $('#gSeats');
     if (!el || !g) return;
-    const act = activeId();
-    el.innerHTML = arr(g.order).map(id => {
+    const act = activeId(), order = arr(g.order);
+    el.innerHTML = order.map((id, i) => {
       const hand = arr(g.hands[id]), rc = IP.rules.revealedCount(g, id), st = stats(id), p = players()[id] || {};
+      const now = id === act && g.phase === 'turns';
+      const next = g.phase === 'turns' && i === g.turn + 1;
+      const off = p.online === false && !p.bot;
       const shown = hand.slice(0, rc).map(cardText).join(', ');
-      const cards = hand.map((c, i) => i < rc ? `<span class="mc ${isRed(c.s) ? 'red' : ''}">${rankLabel(c.r)}<i>${SUIT_CH[c.s]}</i></span>` : '<span class="mc down"></span>').join('');
+      const cards = hand.map((c, k) => k < rc ? `<span class="mc ${isRed(c.s) ? 'red' : ''}">${rankLabel(c.r)}<i>${SUIT_CH[c.s]}</i></span>` : '<span class="mc down"></span>').join('');
       const sh = st.shields ? `<span class="pips" role="img" aria-label="${st.shields} Shield${st.shields > 1 ? 's' : ''}">${st.shields > 2 ? ICON.shield(true) + '×' + st.shields : ICON.shield(true).repeat(st.shields)}</span>` : '';
-      return `<div class="seat ${id === act && g.phase === 'turns' ? 'active' : ''} ${isMe(id) ? 'me' : ''} ${p.online === false && !p.bot ? 'off' : ''}"><div class="seat-top"><span class="nm">${esc(isMe(id) ? 'You' : (p.name || '?'))}</span>${sh}<span class="pts" aria-label="${st.points || 0} points">${st.points || 0}</span></div><div class="seat-cards" role="img" aria-label="${shown ? 'Cards shown: ' + esc(shown) : 'No cards shown yet'}">${cards}</div></div>`;
+      const note = [now ? 'Playing now' : (next ? 'Up next' : ''), off ? 'Away' : '', drinks(st.taken || 0)].filter(Boolean).join(' · ');
+      return `<li class="prow ${now ? 'now' : ''} ${isMe(id) ? 'me' : ''} ${off ? 'off' : ''}"><span class="av" aria-hidden="true">${esc(initial(id))}</span><div class="prow-main"><span class="nm">${esc(isMe(id) ? 'You' : (p.name || '?'))}${sh}</span><span class="pnote">${esc(note)}</span></div><span class="seat-cards" role="img" aria-label="${shown ? 'Cards shown: ' + esc(shown) : 'No cards shown yet'}">${cards}</span><span class="pts">${st.points || 0}<small>pts</small></span></li>`;
     }).join('');
   }
 
@@ -557,7 +603,7 @@
   }
   function wheelHTML(wheel) {
     const R = 125, n = wheel.slices.length, ang = 360 / n;
-    const fills = ['var(--accent)', 'var(--plum)', 'var(--bone)', 'var(--felt)'];
+    const fills = ['var(--accent)', '#0C2219', 'var(--bone)', '#24533B'];
     const inks = ['var(--accent-ink)', 'var(--bone)', 'var(--suit-black)', 'var(--bone)'];
     const fs = n > 8 ? 13 : 10;
     let paths = '', labels = '';
@@ -566,14 +612,14 @@
       const x0 = (R * Math.cos(a0)).toFixed(2), y0 = (R * Math.sin(a0)).toFixed(2), x1 = (R * Math.cos(a1)).toFixed(2), y1 = (R * Math.sin(a1)).toFixed(2);
       // Alternate colours; with an odd count the last slice would touch the first, so give it the 3rd colour.
       const c = (i === n - 1 && n % 4 === 1) ? 2 : i % 4;
-      paths += `<path class="slice" data-i="${i}" d="M0 0L${x0} ${y0}A${R} ${R} 0 0 1 ${x1} ${y1}Z" style="fill:${fills[c]};stroke:var(--ground);stroke-width:2"/>`;
+      paths += `<path class="slice" data-i="${i}" d="M0 0L${x0} ${y0}A${R} ${R} 0 0 1 ${x1} ${y1}Z" style="fill:${fills[c]};stroke:#15382A;stroke-width:2"/>`;
       // 8 or fewer slices: labels run across the slice. More: they run along the radius so they fit.
       labels += n > 8
         ? `<text transform="rotate(${ang * i - 90}) translate(76 0)${(ang * i) % 360 > 180 ? ' rotate(180)' : ''}" x="0" y="0" text-anchor="middle" dominant-baseline="middle" style="fill:${inks[c]};font-size:${fs}px">${esc(IP.sliceLabel(s))}</text>`
         : `<text transform="rotate(${ang * i})" x="0" y="-84" text-anchor="middle" dominant-baseline="middle" style="fill:${inks[c]};font-size:${fs}px">${esc(IP.sliceLabel(s))}</text>`;
     });
     const list = wheel.slices.map(s => IP.sliceLabel(s).toLowerCase()).join(', ');
-    return `<div class="wheel-box"><div class="wheel-disc"><svg viewBox="-130 -130 260 260" role="img" aria-label="Wheel: ${esc(list)}">${paths}<g class="wheel-labels">${labels}</g></svg></div><div class="wheel-hub" aria-hidden="true"></div><svg class="wheel-pointer" viewBox="0 0 26 30" aria-hidden="true"><path d="M2 2H24L13 28Z" style="fill:var(--bone);stroke:var(--ground);stroke-width:3;stroke-linejoin:round"/></svg></div>`;
+    return `<div class="wheel-box"><div class="wheel-disc"><svg viewBox="-130 -130 260 260" role="img" aria-label="Wheel: ${esc(list)}">${paths}<g class="wheel-labels">${labels}</g></svg></div><div class="wheel-hub" aria-hidden="true"></div><svg class="wheel-pointer" viewBox="0 0 26 30" aria-hidden="true"><path d="M2 2H24L13 28Z" style="fill:var(--bone);stroke:#15382A;stroke-width:3;stroke-linejoin:round"/></svg></div>`;
   }
   function wheelTarget(g) {
     const ang = 360 / IP.wheelFor(g.round).slices.length;
@@ -622,12 +668,10 @@
     const wheel = IP.wheelFor(r);
     const note = correct ? (me ? 'You spin. Guessing right means you hand it out, or sit the game out.' : `${nameOf(pid)} spins. They guessed right, so they hand it out, or sit the game out.`) : (me ? 'You spin. Guessing wrong means it’s on you.' : `${nameOf(pid)} spins. They guessed wrong, so it’s on them.`);
     openOverlay(`
-      <div class="ov-head">
-        <div class="ov-cards">${hand.slice(0, r).map((c, i) => miniCard(c, i === r - 1)).join('')}</div>
-        <div class="ov-verdict">
-          <p class="muted">${esc(name)} called ${esc(guessLabel(r, g.guess))}</p>
-          <p class="verdict ${correct ? 'good' : 'bad'}">${correct ? ICON.check + 'Correct' : ICON.x + 'Wrong'}</p>
-        </div>
+      <div class="ov-strip">
+        <span class="av" aria-hidden="true">${esc(initial(pid))}</span>
+        <div class="ov-who"><p class="ov-name">${esc(name)} called ${esc(guessLabel(r, g.guess))}</p><div class="ov-cards">${hand.slice(0, r).map((c, i) => miniCard(c, i === r - 1, true)).join('')}</div></div>
+        <span class="vpill ${correct ? 'good' : 'bad'}">${correct ? ICON.check + 'Correct' : ICON.x + 'Wrong'}</span>
       </div>
       <p class="ov-note">${esc(note)}</p>
       <div class="wheel-wrap"><p class="eyebrow">Round ${r} wheel · ${esc(wheel.name)}</p>${wheelHTML(wheel)}</div>
@@ -738,7 +782,7 @@
     box.dataset.key = key;
     if (myAsk) {
       const it = items[C.pid], st = stats(C.pid);
-      box.innerHTML = `<div class="shield-ask"><div class="shield-badge">${ICON.shield(false)}</div><h2 class="display" style="font-size:26px">Use a Shield?</h2><p class="muted">Skip ${drinks(it.n)} (${esc(fmtFeed(it.why))}). You hold ${st.shields || 0}, and everyone sees you play it.</p><div class="two"><button type="button" class="btn btn-ghost" data-a="take">Take it</button><button type="button" class="btn btn-primary" data-a="use">Use Shield</button></div></div>`;
+      box.innerHTML = `<div class="shield-card"><div class="sc-head">${ICON.shield(true)}<div><p class="sc-title">You drink ${it.n}. Use a Shield?</p><p class="sc-sub">${esc(fmtFeed(it.why))}. You have ${st.shields || 0}, and everyone sees you play it.</p></div></div><div class="two"><button type="button" class="btn btn-primary" data-a="use">Use Shield</button><button type="button" class="btn btn-inkghost" data-a="take">Drink it</button></div></div>`;
       vibrate([40, 40, 40]);
       box.onclick = e => {
         const b = e.target.closest('button[data-a]');
@@ -757,7 +801,7 @@
       const it = items[id], o = out[id];
       const waiting = !pen.out && pen.ask && pen.ask[id] && !dec[id];
       const status = o ? (o.b ? `<span class="blocked">${ICON.shield(true)} Shield</span>` : `<b>${drinks(it.n)}</b>`) : (waiting ? '<span class="muted">deciding on a Shield…</span>' : `<b>${drinks(it.n)}</b>`);
-      return `<li class="${isMe(id) ? 'me' : ''}"><span class="dn">${esc(disp(id))}</span><span class="dw">${esc(fmtFeed(it.why))}</span><span class="ds">${status}</span></li>`;
+      return `<li class="${isMe(id) ? 'me' : ''}"><span class="av" aria-hidden="true">${esc(initial(id))}</span><span class="dn">${esc(disp(id))}</span><span class="dw">${esc(fmtFeed(it.why))}</span><span class="ds">${status}</span></li>`;
     }).join('');
     box.innerHTML = `<p class="eyebrow">${pen.out ? 'Who drinks' : 'Shield check'}</p><ul class="drink-list">${rows}</ul>`;
   }
@@ -837,19 +881,21 @@
     if (sd) sd.build(u, body);
     else body.innerHTML = '';
   }
+  // Break an explainer into short numbered steps, one sentence each.
+  const splitSteps = t => (String(t).match(/[^.!?]+[.!?]+(?=\s|$)|[^.!?]+$/g) || [String(t)]).map(x => x.trim()).filter(Boolean);
   function introHTML(u) {
     const A = u.A, it = IP.ACT_UI[A.kind].intro(u);
-    const what = it.html ? it.what : esc(it.what);
+    const steps = splitSteps(it.what).map(x => `<li>${it.html ? x : esc(x)}</li>`).join('');
     return `${it.banner || ''}${it.tag ? `<p><span class="tag">${esc(it.tag)}</span></p>` : ''}
-      <p class="how">${what}</p>
+      <ol class="steps">${steps}</ol>
       ${it.extra ? `<p class="how small-how">${esc(it.extra)}</p>` : ''}
-      <div class="part"><p class="eyebrow">Your part</p><p>${esc(it.part)}</p></div>
+      <div class="part">${ICON.info}<p>${esc(it.part)}</p></div>
       ${u.prizeCard()}`;
   }
   function gateHTML(u, top, label) {
     return `<div class="gate">${top}
-      <button type="button" class="btn btn-primary btn-block big-btn" id="gateBtn">${esc(label)}</button>
-      <div class="ready-wrap"><p class="eyebrow" id="readyCount"></p><ul class="ready-list" id="readyList"></ul></div></div>`;
+      <div class="ready-wrap"><p class="eyebrow" id="readyCount"></p><ul class="ready-row" id="readyList"></ul></div>
+      <button type="button" class="btn btn-primary btn-block big-btn" id="gateBtn">${esc(label)}</button></div>`;
   }
   function wireGate(u) {
     const sid = u.A.sid;
@@ -866,7 +912,7 @@
     const rc = $('#readyCount');
     if (rc) rc.textContent = `${n} of ${humans.length} ready${n < humans.length ? ' · starts when everyone is' : ''}`;
     const rl = $('#readyList');
-    if (rl) rl.innerHTML = ids.map(id => { const ok = isBot(id) || rd[id]; const off = !isBot(id) && !isOn(id); return `<li class="${ok ? 'ok' : ''} ${off ? 'off' : ''}">${ok ? ICON.check : '<span class="dot" aria-hidden="true"></span>'}<span>${esc(disp(id))}${off ? ' (away)' : ''}</span><span class="sr-only">${ok ? 'ready' : 'not ready'}</span></li>`; }).join('');
+    if (rl) rl.innerHTML = ids.map(id => { const ok = isBot(id) || rd[id]; const off = !isBot(id) && !isOn(id); return `<li class="${ok ? 'ok' : ''} ${off ? 'off' : ''} ${isMe(id) ? 'me' : ''}"><span class="av" aria-hidden="true">${esc(initial(id))}${ok ? `<span class="okb">${ICON.check}</span>` : ''}</span><span class="rn">${esc(disp(id))}${off ? ' (away)' : ''}</span><span class="sr-only">${ok ? 'ready' : 'not ready'}</span></li>`; }).join('');
   }
   function buildDone(u, body) {
     const A = u.A, UIk = IP.ACT_UI[A.kind];

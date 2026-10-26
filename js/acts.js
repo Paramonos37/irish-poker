@@ -112,7 +112,7 @@
     stages: {
       live: {
         build(u, el) {
-          el.innerHTML = `<div class="bomb-wrap"><div class="bomb">${BOMB_SVG}</div><p class="bomb-holder" id="bHolder" aria-live="assertive"></p></div><div id="bPass"></div><p class="muted small center">The fuse is hidden. Pass it before it blows.</p>`;
+          el.innerHTML = `<div class="bomb-wrap"><div class="bomb">${BOMB_SVG}</div></div><p class="cue center" id="bHolder" aria-live="assertive"></p><div id="bPass"></div><p class="muted small center">The fuse is hidden. Pass it before it blows.</p>`;
           el.querySelector('#bPass').addEventListener('click', e => {
             const b = e.target.closest('button[data-to]');
             const B = u.G.bomb;
@@ -135,7 +135,7 @@
           u.st.bombKey = key;
           const mine = u.isMe(B.h);
           el.querySelector('.bomb-wrap').classList.toggle('mine', mine);
-          el.querySelector('#bHolder').innerHTML = mine ? '<b>You have the bomb!</b> Pass it!' : `<b>${u.esc(u.nameOf(B.h))}</b> has the bomb`;
+          el.querySelector('#bHolder').innerHTML = mine ? 'You have the bomb!<span class="sub">Tap a name to pass it, fast.</span>' : `${u.esc(u.nameOf(B.h))} has the bomb<span class="sub">It could land on you next.</span>`;
           const targets = u.arr(A.targets).filter(id => id !== B.h);
           el.querySelector('#bPass').innerHTML = mine ? `<div class="choice-grid">${targets.map(id => `<button type="button" class="btn choice hot" data-to="${u.esc(id)}">${u.esc(u.nameOf(id))}</button>`).join('')}</div>` : '';
           if (mine) u.vibrate([80, 40, 80]);
@@ -167,7 +167,7 @@
       pick: {
         build(u, el) {
           const inIt = u.arr(u.A.pl).indexOf(u.me) !== -1;
-          el.innerHTML = `${inIt ? '<p class="lede center">Pick a door.</p>' : '<p class="lede center">You’re sitting this one out.</p>'}
+          el.innerHTML = `${inIt ? '<p class="cue">Pick a door.</p>' : '<p class="cue">You’re sitting this one out.</p>'}
             <div class="doors" id="dGrid">${[1, 2, 3, 4].map(n => `<button type="button" class="door" data-v="${n}" aria-label="Door ${n}" ${inIt ? '' : 'disabled'}>${DOOR_SVG(n)}</button>`).join('')}</div>
             <p class="muted small center" id="dStatus"></p>`;
           if (inIt) u.on(el, '#dGrid', v => { u.input(Number(v)); u.lockChoices(el, '#dGrid', v); }, '.door');
@@ -181,7 +181,7 @@
       reveal: {
         build(u, el) {
           const A = u.A, doors = A.doors || {};
-          el.innerHTML = `<p class="lede center" id="tLine">Opening the trapdoor…</p>
+          el.innerHTML = `<p class="cue" id="tLine">Opening the trapdoor…</p>
             <div class="doors reveal">${[1, 2, 3, 4].map(n => `<div class="door-col" data-n="${n}"><div class="door">${DOOR_SVG(n)}</div><p class="door-names">${Object.keys(doors).filter(id => doors[id] === n).map(id => u.esc(u.disp(id))).join('<br>') || '<span class="muted">nobody</span>'}</p></div>`).join('')}</div>`;
           u.later(1600, () => {
             const col = el.querySelector(`.door-col[data-n="${A.trap}"]`);
@@ -220,7 +220,7 @@
           for (let i = cells.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); const t = cells[i]; cells[i] = cells[j]; cells[j] = t; }
           const pos = cells.slice(0, A.d.n).map(([c, r]) => ({ x: 2 + c * 24.5 + rng() * 2.5, y: 4 + r * 32 + rng() * 8 }));
           el.innerHTML = `<div class="chairs-area" id="cArea"><p class="chairs-count" id="cCount" aria-live="assertive">3</p></div>
-            <p class="lede center" id="cLine">${inIt ? 'Tap a chair the moment they appear.' : 'You’re watching this one.'}</p>`;
+            <p class="cue" id="cLine">${inIt ? 'Tap a chair the moment they appear.' : 'You’re watching this one.'}</p>`;
           const area = el.querySelector('#cArea');
           const goLocal = performance.now() + (A.go - u.now());
           let shownAt = 0, done = false;
@@ -444,7 +444,7 @@
       vote: {
         build(u, el) {
           const pl = u.arr(u.A.pl).filter(id => !u.isMe(id));
-          el.innerHTML = `<p class="lede">Who’s the imposter?</p><div class="choice-grid" id="ivGrid">${pl.map(id => `<button type="button" class="btn choice" data-v="${u.esc(id)}">${u.esc(u.nameOf(id))}</button>`).join('')}</div><p class="muted small center" id="ivStatus"></p>`;
+          el.innerHTML = `<p class="cue">Who’s the imposter?<span class="sub">Tap the person you think it is.</span></p><div class="choice-grid" id="ivGrid">${pl.map(id => `<button type="button" class="btn choice" data-v="${u.esc(id)}">${u.esc(u.nameOf(id))}</button>`).join('')}</div><p class="muted small center" id="ivStatus"></p>`;
           u.on(el, '#ivGrid', id => { u.input({ t: id, at: u.now() }); u.lockChoices(el, '#ivGrid', id); });
         },
         update(u, el) {
@@ -457,7 +457,7 @@
         build(u, el) {
           const A = u.A, caught = u.arr(A.caught), me = caught.indexOf(u.me) !== -1;
           if (me) {
-            el.innerHTML = `<p class="lede"><b>You got caught.</b> Guess the word to still win.</p><div class="choice-grid" id="igGrid">${u.arr((A.opts || {})[u.me]).map(w => `<button type="button" class="btn choice" data-v="${u.esc(w)}">${u.esc(w)}</button>`).join('')}</div>`;
+            el.innerHTML = `<p class="cue">You got caught!<span class="sub">Guess the word to still win.</span></p><div class="choice-grid" id="igGrid">${u.arr((A.opts || {})[u.me]).map(w => `<button type="button" class="btn choice" data-v="${u.esc(w)}">${u.esc(w)}</button>`).join('')}</div>`;
             u.on(el, '#igGrid', w => { u.input(w); u.lockChoices(el, '#igGrid', w); });
           } else el.innerHTML = `<p class="lede">${u.list(caught)} got caught and ${caught.length > 1 ? 'are' : 'is'} guessing the word…</p>`;
         },
@@ -519,7 +519,7 @@
         build(u, el) {
           const start = 1000;
           u.st.v = start;
-          el.innerHTML = `${UI.price.prodCard(u)}
+          el.innerHTML = `<p class="cue">What does it cost?<span class="sub">Closest guess scores a point.</span></p>${UI.price.prodCard(u)}
             <p class="price-big" id="pBig">${money(start)}</p>
             <label class="sr-only" for="pRange">Your price guess</label>
             <input type="range" class="price-range" id="pRange" min="0" max="1000" step="1" value="${Math.round(IP.tFromPrice(start) * 1000)}">
@@ -664,7 +664,7 @@
         build(u, el) {
           const inIt = u.arr(u.A.pl).indexOf(u.me) !== -1;
           const nums = Array.from({ length: 25 }, (_, i) => i + 1);
-          el.innerHTML = `<p class="lede center">${inIt ? 'Pick a number nobody else will.' : 'You’re sitting this one out.'}</p>
+          el.innerHTML = `<p class="cue">${inIt ? 'Pick a number nobody else will.' : 'You’re sitting this one out.'}</p>
             <div class="num-grid" id="tGrid">${nums.map(n => `<button type="button" class="num" data-v="${n}" ${inIt ? '' : 'disabled'}>${n}</button>`).join('')}</div>
             <p class="muted small center" id="tStatus"></p>`;
           if (inIt) u.on(el, '#tGrid', v => { u.input(Number(v)); u.lockChoices(el, '#tGrid', v, '.num'); }, '.num');
@@ -705,7 +705,7 @@
           const plan = IP.shellPlan(A.d.seed, n, A.d.swaps);
           const inIt = u.arr(A.pl).indexOf(u.me) !== -1;
           const width = (100 / n) * 0.84;
-          el.innerHTML = `<p class="lede center" id="shLine">Watch the skull…</p>
+          el.innerHTML = `<p class="cue" id="shLine">Watch the skull…</p>
             <div class="shell-area" id="shArea" style="--cupw:${width}%">${Array.from({ length: n }, (_, id) => `<button type="button" class="cup" data-v="${id}" style="left:${UI.shell.slotX(n, id)}%" aria-label="Cup" disabled>${id === A.d.skull ? `<span class="skull">${SKULL_SVG}</span>` : ''}<span class="cup-body">${CUP_SVG}</span></button>`).join('')}</div>
             <p class="muted small center" id="shStatus"></p>`;
           const cups = Array.from(el.querySelectorAll('.cup'));
@@ -760,7 +760,7 @@
           plan.steps.forEach(step => step.pairs.forEach(([sa, sb]) => { const a = slotOf.indexOf(sa), b = slotOf.indexOf(sb); slotOf[a] = sb; slotOf[b] = sa; }));
           const width = (100 / n) * 0.84;
           const who = id => Object.keys(picks).filter(p => picks[p] === id).map(p => u.esc(u.disp(p))).join('<br>');
-          el.innerHTML = `<p class="lede center"><b>Here’s the skull.</b></p>
+          el.innerHTML = `<p class="cue"><b>Here’s the skull.</b></p>
             <div class="shell-area rev" style="--cupw:${width}%">${Array.from({ length: n }, (_, id) => `<div class="cup ${id === A.d.skull ? 'lift win' : 'lift'}" style="left:${UI.shell.slotX(n, slotOf[id])}%">${id === A.d.skull ? `<span class="skull">${SKULL_SVG}</span>` : ''}<span class="cup-body">${CUP_SVG}</span><span class="cup-names">${who(id)}</span></div>`).join('')}</div>`;
           const mine = picks[u.me];
           if (mine !== undefined) u.vibrate(mine === A.d.skull ? 40 : 250);
@@ -799,7 +799,7 @@
           const seq = IP.memorySeq(A.d.seed, 30).slice(0, p.len);
           const alive = u.arr(A.alive).indexOf(u.me) !== -1;
           el.innerHTML = `<div class="mem-head"><p class="eyebrow">Round ${lvl} · ${p.len} symbols</p><p class="mem-alive" id="mAlive"></p></div>
-            <p class="lede center" id="mLine">${alive ? 'Get ready…' : 'You’re out. Watch the rest.'}</p>
+            <p class="cue" id="mLine">${alive ? 'Get ready…' : 'You’re out. Watch the rest.'}</p>
             <div class="mem-grid" id="mGrid">${[0, 1, 2, 3, 4, 5].map(i => memTile(i, true)).join('')}</div>
             <p class="muted small center" id="mStatus"></p>`;
           const tiles = Array.from(el.querySelectorAll('.mem-tile'));
@@ -882,7 +882,7 @@
       const st = u.st;
       st.dice = [0, 0, 0, 0, 0]; st.held = [false, false, false, false, false]; st.shakes = 0;
       const max = re ? 1 : 3;
-      el.innerHTML = `${re ? `<p class="lede">Roll-off! ${u.list(players)} tied, so ${players.length > 2 ? 'they each get' : 'each gets'} one shake.</p>` : ''}
+      el.innerHTML = `${re ? `<p class="cue">Roll-off!<span class="sub">${u.list(players)} tied, so ${players.length > 2 ? 'they each get' : 'each gets'} one shake.</span></p>` : `<p class="cue">${inIt ? 'Shake, then keep the dice you like.' : 'Everyone’s shaking.'}<span class="sub">Up to 3 shakes. Aces are wild.</span></p>`}
         ${inIt ? `<div class="dice-row" id="dRow">${[0, 1, 2, 3, 4].map(i => `<button type="button" class="die" data-i="${i}" disabled>${dieSVG(0)}<span class="held-tag">HELD</span></button>`).join('')}</div>
         <p class="dice-score" id="dScore">Shake to start</p>
         <div class="two"><button type="button" class="btn btn-primary" id="dShake">Shake</button><button type="button" class="btn btn-ghost" id="dKeep" disabled>Keep this hand</button></div>
