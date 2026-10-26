@@ -111,10 +111,15 @@
           el.querySelector('#bPass').addEventListener('click', e => {
             const b = e.target.closest('button[data-to]');
             const B = u.G.bomb;
-            if (!b || !B || !u.isMe(B.h)) return;
-            el.querySelectorAll('#bPass button').forEach(x => { x.disabled = true; });
+            if (!b || b.disabled || !B || !u.isMe(B.h)) return;
+            const btns = Array.from(el.querySelectorAll('#bPass button'));
+            btns.forEach(x => { x.disabled = true; });
             const k = B.k, to = b.dataset.to, me = u.me;
-            u.tx('game/bomb', cur => (cur.h === me && cur.k === k) ? { h: to, k: k + 1, at: u.now() } : undefined);
+            u.tx('game/bomb', cur => (cur.h === me && cur.k === k) ? { h: to, k: k + 1, at: u.now() } : undefined).then(r => {
+              // If the pass didn't go through and it's still mine, let me try again.
+              const now = u.G.bomb;
+              if ((!r || !r.committed) && now && u.isMe(now.h) && now.k === k) btns.forEach(x => { if (x.isConnected) x.disabled = false; });
+            });
           });
         },
         update(u, el) {

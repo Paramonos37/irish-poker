@@ -726,12 +726,16 @@
   function makeU() {
     const g = G(), A = g.act;
     const u = {
-      S: C.S, G: g, A, me: C.pid, n: IP.ACT_DRINKS[A.round] || 2, st: C.st,
+      // Live getters: buttons wired up when a stage starts must read the room as it is now.
+      get S() { return C.S || {}; },
+      get G() { return G() || g; },
+      get A() { return (G() && G().act) || A; },
+      me: C.pid, n: IP.ACT_DRINKS[A.round] || 2, st: C.st,
       esc, arr, isMe, isBot, isOn, nameOf, disp, poss, vibrate, isHost, send, now,
       list: listNames,
       inputs: () => { const v = (G().ain && G().ain[G().act.sid]) || {}; const o = {}; Object.keys(v).forEach(k => { if (k !== '_') o[k] = v[k]; }); return o; },
       input: v => dbSet(`game/ain/${A.sid}/${C.pid}`, v),
-      tx: (path, fn) => C.db.transaction(C.base + '/' + path, cur => (cur === null || cur === undefined) ? null : fn(cur)).catch(e => console.error(e)),
+      tx: (path, fn) => C.db.transaction(C.base + '/' + path, cur => (cur === null || cur === undefined) ? null : fn(cur)).catch(e => { console.error(e); return null; }),
       on: (el, sel, cb, item) => {
         const box = el.querySelector(sel);
         if (!box) return;
